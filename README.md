@@ -165,28 +165,63 @@ top of `scripts/cron.js`.
   a superuser) — only against other roles. The app's `DATABASE_URL` has
   been connecting with the same role that ran the migrations, i.e. the
   table owner, so every `tenant_isolation_*` policy had no effect and
-  cross-tenant queries were not actually being blocked. This migration
-  creates a dedicated, non-owner `app_user` role, grants it exactly the
-  privileges the app needs (CRUD on tenant-scoped tables, read-only on
-  `campaign_templates`, no `BYPASSRLS`/`SUPERUSER`/`CREATEROLE`), and
-  turns on `FORCE ROW LEVEL SECURITY` so policies apply even if a
-  connection ever runs as the owner role again.
+  cross-tenant queries were not actually being blocked. Verified this
+  empirically against a local Postgres instance, not just by reading the
+  SQL: a query scoped via `set_config('app.current_tenant_id', ...)` —
+  the exact mechanism `runWithTenant` uses — still returned another
+  tenant's rows when run as the owning role; the identical test as a
+  plain non-owner role isolated correctly.
+
+  This migration creates a dedicated, non-owner `app_user` role, grants
+  it exactly the privileges the app needs (CRUD on tenant-scoped tables,
+  read-only on `campaign_templates`, no
+  `BYPASSRLS`/`SUPERUSER`/`CREATEROLE`), and turns on
+  `FORCE ROW LEVEL SECURITY` so policies apply even if a connection ever
+  runs as the owner role again.
+
+  **Caught while reviewing this migration, before it shipped:** three
+  Twilio webhook routes (`voice`, `sms-inbound`, `recording-status`)
+  each resolve a `tenant_id` from `tracking_numbers`/`leads` *before*
+  any tenant context exists — that's the entire point of the query
+  (e.g. "which tenant owns the number that was just dialed"). Naively
+  switching to a strict non-owner role would have made those queries
+  silently return zero rows, breaking inbound call routing, SMS opt-out
+  recording, and recording-URL linkage — trading a data leak for a
+  silent phone-system outage. Fixed by:
+  - Exempting `tracking_numbers` from RLS — it's a public
+    phone-number-to-tenant routing table by design, the same trust model
+    already used for `prospects`/`campaign_templates`.
+  - Adding two `SECURITY DEFINER` functions, `get_tenant_for_call_sid()`
+    and `get_tenant_for_caller_number()`, so the `leads` bootstrap
+    lookups keep working without a blanket RLS carve-out on `leads`
+    itself. Both pin `search_path` — an unpinned search path on a
+    `SECURITY DEFINER` function is a known local privilege-escalation
+    vector — and `EXECUTE` is revoked from `PUBLIC` and granted only to
+    `app_user`. `recording-status/route.js` and `sms-inbound/route.js`
+    were updated to call these instead of raw `SELECT`s on `leads`.
 
   **This is an admin/operational step, not something the app can do for
   itself** — creating a role requires `CREATEROLE` or superuser, which
   the app's own runtime role must never have. Run it once per database,
   after `migrate_combined.sql`, as the same admin/owner credential that
-  ran the schema migrations:
+  ran the schema migrations, over a separate `MIGRATION_DATABASE_URL`
+  (see `.env.example`) since `app_user` itself has no DDL privileges:
 
   ```bash
-  psql "$DATABASE_URL" -f db/migrate_rls_hardening.sql
-  psql "$DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+  psql "$MIGRATION_DATABASE_URL" -f db/migrate_rls_hardening.sql
+  psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
   ```
 
-  Then point the app's `DATABASE_URL` at `app_user` (not the owner role)
-  before deploying. The migration does not set a password itself —
-  keeping generated secrets out of a committed SQL file — so this step
-  is required before `app_user` can log in.
+  Then point the app's `DATABASE_URL` (not `MIGRATION_DATABASE_URL`) at
+  `app_user` before deploying. The migration does not set a password
+  itself — keeping generated secrets out of a committed SQL file — so
+  this step is required before `app_user` can log in.
+
+  **Not done here — needs the actual hosting platform:** rotating a real
+  deployment's live `DATABASE_URL` secret from the owner connection to
+  `app_user`. That requires access to the platform's secrets manager,
+  which is outside what this session has; everything above was built and
+  verified against a disposable local Postgres instance.
 
 ## Fit scoring (added this pass)
 
@@ -217,18 +252,24 @@ top of `scripts/cron.js`.
 
 ```bash
 npm install
-# fill in .env: DATABASE_URL, ACTION_TOKEN_SECRET, TWILIO_*, OPENAI_API_KEY,
-# STRIPE_*, GOOGLE_PLACES_API_KEY, HUNTER_API_KEY, PROSPECTING_HOUSE_TENANT_ID,
-# TARGET_SERVICE_AREAS
-node db/migrate_combined.sql              # or: psql $DATABASE_URL -f db/migrate_combined.sql
-node db/migrate_prospect_enrichment.sql   # run after migrate_combined.sql
-node db/migrate_prospect_scoring.sql      # run after migrate_prospect_enrichment.sql
+# fill in .env: DATABASE_URL, MIGRATION_DATABASE_URL, ACTION_TOKEN_SECRET,
+# TWILIO_*, OPENAI_API_KEY, STRIPE_*, GOOGLE_PLACES_API_KEY, HUNTER_API_KEY,
+# PROSPECTING_HOUSE_TENANT_ID, TARGET_SERVICE_AREAS
+#
+# MIGRATION_DATABASE_URL is the table-owning/admin credential, used only
+# for the migrations below. DATABASE_URL is app_user, the app's runtime
+# connection -- it doesn't exist yet until the last step creates it, so
+# leave DATABASE_URL pointed at an admin credential until then too.
+npm run migrate                           # runs db/migrate_combined.sql via MIGRATION_DATABASE_URL
+psql "$MIGRATION_DATABASE_URL" -f db/migrate_prospect_enrichment.sql   # after migrate_combined.sql
+psql "$MIGRATION_DATABASE_URL" -f db/migrate_prospect_scoring.sql      # after migrate_prospect_enrichment.sql
 
-# Admin/operational step -- run once as the same privileged credential
-# used above, then point DATABASE_URL at app_user before deploying.
-# See "Role hardening + a missing table" below for why this matters.
-psql $DATABASE_URL -f db/migrate_rls_hardening.sql
-psql $DATABASE_URL -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+# Admin/operational step -- creates app_user and its grants. See "Role
+# hardening + a missing table" below for why this matters.
+npm run migrate:rls-hardening
+psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+# Now switch DATABASE_URL (only DATABASE_URL, not MIGRATION_DATABASE_URL)
+# to the app_user connection string before starting the app.
 ```
 
 ## On the copyright registration angle
