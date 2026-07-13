@@ -45,7 +45,9 @@ async function updateConversionScores() {
             WHEN rating >= 4.0 THEN 15
             ELSE 0
           END) / 100.0) * 95, 95),
-        review_velocity = (review_count - COALESCE(last_score_review_count, 0)) / NULLIF(EXTRACT(DAY FROM (NOW() - last_scored_at)), 0)
+        review_velocity = (review_count - COALESCE(last_score_review_count, 0)) / NULLIF(EXTRACT(DAY FROM (NOW() - last_scored_at)), 0),
+        last_scored_at = NOW(),
+        last_score_review_count = review_count
       WHERE last_scored_at IS NULL OR last_scored_at < NOW() - INTERVAL '24 hours'
       RETURNING id
     `);
@@ -100,8 +102,8 @@ async function runScheduler() {
     console.log('[START] Scheduler running at', new Date().toISOString());
 
     await updateConversionScores();
-    await processBookedJobs();
     await cleanupOldRecords();
+    await processBookedJobs();
 
     console.log('[SUCCESS] Scheduler completed at', new Date().toISOString());
   } catch (error) {
