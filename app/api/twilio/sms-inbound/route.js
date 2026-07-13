@@ -23,9 +23,14 @@ export async function POST(req) {
     const { From, Body } = params;
     const normalizedBody = (Body || '').trim().toLowerCase();
 
-    // Find which tenant this number belongs to via their caller history
+    // Find which tenant this number belongs to via their caller history.
+    // Uses the get_tenant_for_caller_number() SECURITY DEFINER function
+    // instead of a raw SELECT on leads — see db/migrate_rls_hardening.sql.
+    // There's no tenant context yet at this point (that's what we're
+    // resolving), and leads is under strict RLS, so a raw query here
+    // would return 0 rows once RLS is actually enforced.
     const { rows } = await query(
-      `SELECT tenant_id FROM leads WHERE caller_number = $1 ORDER BY created_at DESC LIMIT 1`,
+      `SELECT get_tenant_for_caller_number($1) AS tenant_id`,
       [From]
     );
     const tenantId = rows[0]?.tenant_id;

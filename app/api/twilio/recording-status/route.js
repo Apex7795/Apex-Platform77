@@ -21,7 +21,12 @@ export async function POST(req) {
       return new Response('Missing CallSid or RecordingUrl', { status: 400 });
     }
 
-    const { rows } = await query('SELECT tenant_id FROM leads WHERE call_sid = $1', [CallSid]);
+    // Uses the get_tenant_for_call_sid() SECURITY DEFINER function instead
+    // of a raw SELECT on leads — see db/migrate_rls_hardening.sql. There's
+    // no tenant context yet at this point (that's what we're resolving),
+    // and leads is under strict RLS, so a raw query here would return 0
+    // rows once RLS is actually enforced.
+    const { rows } = await query('SELECT get_tenant_for_call_sid($1) AS tenant_id', [CallSid]);
     const tenantId = rows[0]?.tenant_id;
 
     if (!tenantId) {
