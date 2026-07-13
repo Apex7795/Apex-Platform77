@@ -94,6 +94,19 @@ CREATE TABLE IF NOT EXISTS campaign_templates (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Was present in db/schema.sql and scripts/migrate.js but missing from
+-- this combined migration, so a fresh deploy that only runs this file
+-- never got the table -- app/api/action/launch-campaign/route.js's
+-- INSERT INTO audit_logs would fail on first use.
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    action_type TEXT NOT NULL,
+    resource_id UUID,
+    metadata JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -111,12 +124,14 @@ CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(tenant_id, created_at D
 CREATE INDEX IF NOT EXISTS idx_leads_rescue ON leads(status, rescue_stage, last_touched_at)
     WHERE status IN ('new', 'no_answer');
 CREATE INDEX IF NOT EXISTS idx_ad_campaigns_tenant ON ad_campaigns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs(tenant_id);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE landing_pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracking_numbers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ad_campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS tenant_isolation_users ON users;
 CREATE POLICY tenant_isolation_users ON users
@@ -136,6 +151,10 @@ CREATE POLICY tenant_isolation_leads ON leads
 
 DROP POLICY IF EXISTS tenant_isolation_ad_campaigns ON ad_campaigns;
 CREATE POLICY tenant_isolation_ad_campaigns ON ad_campaigns
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
+
+DROP POLICY IF EXISTS tenant_isolation_audit_logs ON audit_logs;
+CREATE POLICY tenant_isolation_audit_logs ON audit_logs
     USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
 
 -- NOTE: changed from the original schema.sql, which called
