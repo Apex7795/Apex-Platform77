@@ -58,6 +58,17 @@ ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_scored_at TIMESTAMPTZ;
 ALTER TABLE prospects ADD COLUMN IF NOT EXISTS last_score_review_count INTEGER;
 ALTER TABLE booked_jobs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
 
+-- Lead Discovery / Hunter.io enrichment columns
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS domain VARCHAR(255);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE prospects ADD COLUMN IF NOT EXISTS place_id VARCHAR(255);
+
+-- Stripe commission payout tracking
+ALTER TABLE booked_jobs ADD COLUMN IF NOT EXISTS stripe_transfer_id VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_booked_jobs_stripe_transfer_id ON booked_jobs(stripe_transfer_id);
+
 -- Create function for automatic updated_at timestamp
 CREATE OR REPLACE FUNCTION update_timestamp()
 RETURNS TRIGGER AS $$
