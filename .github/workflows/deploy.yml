@@ -2,9 +2,9 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/new-session-ixg4bl]
   pull_request:
-    branches: [main]
+    branches: [main, claude/new-session-ixg4bl]
 
 jobs:
   build:
