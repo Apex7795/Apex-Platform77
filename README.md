@@ -1,0 +1,284 @@
+# Apex Junk Solutions — Combined Platform + Prospecting Module
+
+This is the platform source (call tracking, lead rescue, campaign actions,
+dashboards, billing) merged with the Prospecting & Enrichment module
+(business discovery, email outreach, opt-out handling), as one tree.
+
+## What changed in this merge
+
+1. **`db/migrate_combined.sql`** — the migration to actually run. It's
+   `db/schema.sql` + `scripts/migrate_prospects.js`'s tables combined into
+   one atomic transaction, with one correctness fix applied (see #2 below).
+   `db/schema.sql` and `scripts/migrate_prospects.js` are kept in the tree
+   for reference/history but you should not run them separately if you've
+   run the combined migration.
+
+2. **Fixed: RLS policies now use `current_setting(..., true)`.** The
+   original policies (`db/schema.sql`, `scripts/migrate.js`) call
+   `current_setting('app.current_tenant_id')` with no second argument.
+   Without it, Postgres *throws* on any query where that session variable
+   was never set, instead of just returning zero rows. That's not a
+   theoretical issue — it's exactly what breaks item #3 below.
+
+3. **Fixed: `app/api/prospects/reply/route.js`** now writes the converted
+   lead through `runWithTenant(HOUSE_TENANT_ID, ...)` instead of a bare
+   `pool.query(...)`. The original bare call would throw
+   `unrecognized configuration parameter` on every single click of a
+   "Interested?" link in an outreach email, because it never set the
+   tenant session variable the `leads` RLS policy depends on.
+
+## Fixed in this final master build
+
+- **`lib/db.js`: `SET LOCAL` → `set_config()`.** `SET LOCAL app.current_tenant_id = $1`
+  bound a parameter to a utility statement, which `pg` doesn't reliably
+  support across versions. Changed to
+  `SELECT set_config('app.current_tenant_id', $1, true)` — a regular
+  function call that binds normally and keeps the same transaction-local
+  scoping (`true` = local to the transaction, same as `SET LOCAL` had).
+
+- **`jobs/leadRescue.js`: SMS `from` number.** Was sending
+  `from: tenant.owner_phone` — the business owner's own personal number,
+  which Apex doesn't control. Twilio requires `from` to be a number
+  you've provisioned on your own account, so every send would have failed
+  in production. Now looks up the tenant's active row in
+  `tracking_numbers` instead, and skips the send (logging loudly, not
+  silently) if a tenant has no active tracking number, rather than
+  attempting a send Twilio would reject anyway. `jobs/dailyDigest.js` was
+  checked too — it already used `owner_phone` correctly there (as the
+  `to`, with a platform-owned `from`), so it needed no change.
+
+## Verification performed on this build
+
+No live database or network access was available to test this against a
+real Postgres instance or real third-party APIs, so verification was
+static and unit-level:
+
+- **Syntax**: every `.js` file passes `node --check`, before and after
+  the two fixes above. `.jsx` files checked for balanced
+  brackets/braces + a default export (no offline JSX transpiler
+  available to fully parse them).
+- **Token logic** (`actionTokens.js`, `prospectOptOutTokens.js`): 13 unit
+  tests — valid roundtrip, tampered-signature rejection, expiry, wrong
+  action/resource rejection, and that an opt-out token can't be replayed
+  as a reply-consent token or vice versa. 13/13 passed.
+- **Admin auth** (`adminAuth.js`): 6 unit tests, including that a missing
+  `ADMIN_API_TOKEN` fails closed (denies everything) rather than silently
+  disabling auth. 6/6 passed.
+- **Scoring** (`prospectScoring.js`): 5 unit tests — malformed input
+  doesn't throw, a strong prospect outscores a weak one, tier is always
+  valid. 5/5 passed.
+- **Schema cross-reference**: every column in every `SELECT`, `INSERT`,
+  and `UPDATE` across the codebase checked against the columns the three
+  migration files actually create, in order. 0 mismatches, re-verified
+  after both fixes were applied.
+
+**Not verified — still needs real infrastructure before production**: RLS
+behavior against an actual Postgres instance, and live Twilio / Postmark /
+OpenAI / Google Places / Hunter.io calls. Run the migration and a manual
+smoke test against a staging database first.
+
+## Not fixed — flagging instead, since these need a product decision, not just a syntax fix
+
+- **`/api/prospects/*` admin routes now require `Authorization: Bearer
+  <ADMIN_API_TOKEN>`** (`lib/adminAuth.js`), applied to `discover`,
+  `[id]` PATCH, `[id]/outreach`, `enrich-and-outreach`, and the list
+  endpoint. `opt-out` and `reply` are deliberately NOT gated — those are
+  public links clicked by prospects from outreach emails, protected by
+  their own single-purpose HMAC tokens instead.
+
+  **This closes the API, not the browser dashboard.** `ADMIN_API_TOKEN` is
+  a static shared secret — fine for scripts/cron/curl, but it must never
+  be embedded in `ProspectingTab.jsx` or any client bundle, since browser
+  JS is readable by anyone with devtools. That component still has no
+  working auth story; see the warning comment at its top. It needs real
+  session-based admin login before going live, with these fetch calls
+  either riding that session cookie or going through a server-side proxy.
+
+- **`PROSPECTING_HOUSE_TENANT_ID`** must be set to a real row in `tenants`
+  before `reply/route.js` can do anything besides log a warning.
+
+- **`services/prospectOutreach.js`: `sendViaEmailProvider()`** now sends
+  via Postmark (`postmark` npm package). Requires `POSTMARK_SERVER_TOKEN`
+  and `OUTREACH_FROM_EMAIL` in `.env` — the From address must be a
+  verified Sender Signature or domain in your Postmark account, or sends
+  will fail with 401/422. Also adds a `List-Unsubscribe` header alongside
+  the in-body opt-out link (mail-client-level unsubscribe button, good for
+  both CAN-SPAM compliance and sender reputation).
+
+## Scheduling
+
+This is a Next.js app — API routes are request/response and don't stay
+alive to host `node-cron` themselves. `scripts/cron.js` is a standalone
+worker process that schedules all three background jobs (lead rescue every
+5 min, daily digest at 8am server time, prospect discovery at 6am). Run it
+as its own process/container:
+
+```bash
+npm run cron
+```
+
+**Run exactly one instance of this process.** Scaling it like the web app
+sends duplicate SMS/emails per job run — see the warning comment at the
+top of `scripts/cron.js`.
+
+## Waterfall enrichment + AI-personalized outreach (added this pass)
+
+- **`db/migrate_prospect_enrichment.sql`** — new columns on `prospects`
+  (`domain`, `emails` JSONB, `firmographics`, `intent_signals`,
+  `last_enriched_at`) plus a unique index on `domain` for upsert/dedup.
+  Run this *after* `db/migrate_combined.sql`, not instead of it.
+- **`services/waterfallEnrichment.js`** — tries enrichment providers in
+  order, stopping at the first hit. Only Hunter.io is actually wired in;
+  firmographics/intent signals are explicitly `null` until a real provider
+  (Clearbit, Apollo, etc.) is configured — this deliberately does not
+  fabricate plausible-looking company data.
+- **`services/aiPersonalization.js`** — generates a one-line icebreaker,
+  told explicitly not to invent facts when no firmographic/intent data is
+  available.
+- **`jobs/prospectHygiene.js`** — weekly (Sun 2am) refresh of enrichment
+  data older than 30 days. Excludes `opted_out` and `converted` prospects,
+  batch-limited to 200/run, 1s delay between requests.
+- **`app/api/prospects/enrich-and-outreach/route.js`** — the on-demand
+  version: enrich a domain, generate an icebreaker, send outreach. Fixed
+  from the version this was adapted from: it now upserts on `domain`
+  instead of erroring on the missing-`source` NOT NULL violation, and it
+  sends through `sendOutreachEmail()` instead of calling the email
+  provider directly — so opt-out checks, the unsubscribe link, the reply
+  link, and the outreach log all still apply. **Do not add a second code
+  path that calls `sendViaEmailProvider()` directly** — every send should
+  go through `sendOutreachEmail()` or these protections get bypassed again.
+
+## Role hardening + a missing table (added this pass)
+
+- **`db/migrate_combined.sql` was missing the `audit_logs` table.** It
+  existed in `db/schema.sql` and `scripts/migrate.js` but never made it
+  into the combined migration, so a fresh deploy that only runs
+  `migrate_combined.sql` (as the setup steps below say to) would have no
+  `audit_logs` table, and
+  `app/api/action/launch-campaign/route.js`'s `INSERT INTO audit_logs`
+  would fail on the very first campaign launch. Added the table, its
+  index, RLS enablement, and tenant-isolation policy, matching the
+  pattern already used for `leads` / `ad_campaigns` in that file.
+
+- **`db/migrate_rls_hardening.sql` (new) — RLS was silently a no-op.**
+  Postgres never enforces Row Level Security against a table's owner (or
+  a superuser) — only against other roles. The app's `DATABASE_URL` has
+  been connecting with the same role that ran the migrations, i.e. the
+  table owner, so every `tenant_isolation_*` policy had no effect and
+  cross-tenant queries were not actually being blocked. Verified this
+  empirically against a local Postgres instance, not just by reading the
+  SQL: a query scoped via `set_config('app.current_tenant_id', ...)` —
+  the exact mechanism `runWithTenant` uses — still returned another
+  tenant's rows when run as the owning role; the identical test as a
+  plain non-owner role isolated correctly.
+
+  This migration creates a dedicated, non-owner `app_user` role, grants
+  it exactly the privileges the app needs (CRUD on tenant-scoped tables,
+  read-only on `campaign_templates`, no
+  `BYPASSRLS`/`SUPERUSER`/`CREATEROLE`), and turns on
+  `FORCE ROW LEVEL SECURITY` so policies apply even if a connection ever
+  runs as the owner role again.
+
+  **Caught while reviewing this migration, before it shipped:** three
+  Twilio webhook routes (`voice`, `sms-inbound`, `recording-status`)
+  each resolve a `tenant_id` from `tracking_numbers`/`leads` *before*
+  any tenant context exists — that's the entire point of the query
+  (e.g. "which tenant owns the number that was just dialed"). Naively
+  switching to a strict non-owner role would have made those queries
+  silently return zero rows, breaking inbound call routing, SMS opt-out
+  recording, and recording-URL linkage — trading a data leak for a
+  silent phone-system outage. Fixed by:
+  - Exempting `tracking_numbers` from RLS — it's a public
+    phone-number-to-tenant routing table by design, the same trust model
+    already used for `prospects`/`campaign_templates`.
+  - Adding two `SECURITY DEFINER` functions, `get_tenant_for_call_sid()`
+    and `get_tenant_for_caller_number()`, so the `leads` bootstrap
+    lookups keep working without a blanket RLS carve-out on `leads`
+    itself. Both pin `search_path` — an unpinned search path on a
+    `SECURITY DEFINER` function is a known local privilege-escalation
+    vector — and `EXECUTE` is revoked from `PUBLIC` and granted only to
+    `app_user`. `recording-status/route.js` and `sms-inbound/route.js`
+    were updated to call these instead of raw `SELECT`s on `leads`.
+
+  **This is an admin/operational step, not something the app can do for
+  itself** — creating a role requires `CREATEROLE` or superuser, which
+  the app's own runtime role must never have. Run it once per database,
+  after `migrate_combined.sql`, as the same admin/owner credential that
+  ran the schema migrations, over a separate `MIGRATION_DATABASE_URL`
+  (see `.env.example`) since `app_user` itself has no DDL privileges:
+
+  ```bash
+  psql "$MIGRATION_DATABASE_URL" -f db/migrate_rls_hardening.sql
+  psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+  ```
+
+  Then point the app's `DATABASE_URL` (not `MIGRATION_DATABASE_URL`) at
+  `app_user` before deploying. The migration does not set a password
+  itself — keeping generated secrets out of a committed SQL file — so
+  this step is required before `app_user` can log in.
+
+  **Not done here — needs the actual hosting platform:** rotating a real
+  deployment's live `DATABASE_URL` secret from the owner connection to
+  `app_user`. That requires access to the platform's secrets manager,
+  which is outside what this session has; everything above was built and
+  verified against a disposable local Postgres instance.
+
+## Fit scoring (added this pass)
+
+- **`db/migrate_prospect_scoring.sql`** — adds `rating`, `review_count`,
+  `business_status`, `fit_score`, `fit_tier`, `fit_reasons` to `prospects`.
+  Run after `db/migrate_prospect_enrichment.sql`.
+- **`services/prospectScoring.js`** — scores fit using only what Google
+  Places actually returns: operational status (hard disqualifier if
+  permanently closed), review count as a call-volume proxy, rating ≥ 4.0,
+  website presence, and an optional `TARGET_SERVICE_AREAS` geographic
+  filter. Explicitly does **not** score revenue or business age — that
+  needs a paid firmographics provider that isn't wired in yet (see the
+  stubbed second waterfall slot in `services/waterfallEnrichment.js`).
+  Weights are a reasonable starting point, not a calibrated model — there's
+  no conversion data yet to calibrate against.
+- **`lib/prospecting/googlePlaces.js`** — field mask extended to request
+  `rating`, `userRatingCount`, `businessStatus` (small per-call cost
+  increase on the Places API "Pro" SKU at scale, worth knowing).
+- **`jobs/prospectDiscovery.js`** — scores every prospect at discovery
+  time and persists it; `enrichPendingProspects()` now skips
+  `fit_tier = 'disqualified'` prospects so Hunter.io calls aren't wasted
+  on permanently-closed businesses.
+- **`GET /api/prospects?tier=hot`** — list endpoint now filters by tier
+  and sorts by `fit_score DESC` by default (previously sorted by
+  discovery date only).
+
+## Setup
+
+```bash
+npm install
+# fill in .env: DATABASE_URL, MIGRATION_DATABASE_URL, ACTION_TOKEN_SECRET,
+# TWILIO_*, OPENAI_API_KEY, STRIPE_*, GOOGLE_PLACES_API_KEY, HUNTER_API_KEY,
+# PROSPECTING_HOUSE_TENANT_ID, TARGET_SERVICE_AREAS
+#
+# MIGRATION_DATABASE_URL is the table-owning/admin credential, used only
+# for the migrations below. DATABASE_URL is app_user, the app's runtime
+# connection -- it doesn't exist yet until the last step creates it, so
+# leave DATABASE_URL pointed at an admin credential until then too.
+npm run migrate                           # runs db/migrate_combined.sql via MIGRATION_DATABASE_URL
+psql "$MIGRATION_DATABASE_URL" -f db/migrate_prospect_enrichment.sql   # after migrate_combined.sql
+psql "$MIGRATION_DATABASE_URL" -f db/migrate_prospect_scoring.sql      # after migrate_prospect_enrichment.sql
+
+# Admin/operational step -- creates app_user and its grants. See "Role
+# hardening + a missing table" below for why this matters.
+npm run migrate:rls-hardening
+psql "$MIGRATION_DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+# Now switch DATABASE_URL (only DATABASE_URL, not MIGRATION_DATABASE_URL)
+# to the app_user connection string before starting the app.
+```
+
+## On the copyright registration angle
+
+Not part of the code, but worth repeating here since it's the stated
+end goal for this deposit copy: this codebase (both the original platform
+and the prospecting module) is substantially AI-generated across this and
+prior sessions. Copyright Office guidance requires disclosing AI's role
+in works submitted for registration — a filing that presents this as
+wholly human-authored risks the registration being invalidated later.
+Worth confirming the right disclosure approach with an IP attorney before
+filing, as the earlier copyright documentation itself recommended.
