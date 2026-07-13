@@ -1,27 +1,10 @@
-import { pool } from '../../../../lib/db';
-
-// Verify admin token
-async function verifyAdmin(request) {
-  const auth = request.headers.get('authorization');
-
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return false;
-  }
-
-  const token = auth.substring(7);
-  return token === process.env.ADMIN_API_TOKEN;
-}
-
-// Validate UUID format
-function isValidUUID(uuid) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid);
-}
+import { pool } from '@/lib/db';
+import { isAuthorized } from '@/lib/auth';
+import { isValidUUID } from '@/lib/validation';
 
 export async function POST(request) {
   try {
-    // Verify admin
-    const isAdmin = await verifyAdmin(request);
-    if (!isAdmin) {
+    if (!isAuthorized(request)) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

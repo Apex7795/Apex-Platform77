@@ -1,4 +1,6 @@
 const { pool } = require('../lib/db');
+const { updateStaleScores } = require('../lib/services/prospectScoring');
+const { runRescueSweep } = require('../lib/services/leadRescue');
 
 const LOCK_ID = 1000;
 const LOCK_TIMEOUT = 5 * 60 * 1000; // 5 minutes
@@ -21,38 +23,30 @@ async function releaseLock() {
 async function updateConversionScores() {
   console.log('Updating conversion scores...');
   try {
-    const result = await pool.query(`
-      UPDATE prospects
-      SET
-        conversion_score = CASE
-          WHEN review_count > 50 THEN 30 + 30
-          WHEN review_count > 20 THEN 30 + 20
-          ELSE 30
-        END +
-        CASE
-          WHEN rating >= 4.5 THEN 25
-          WHEN rating >= 4.0 THEN 15
-          ELSE 0
-        END,
-        conversion_probability = LEAST((
-          (CASE
-            WHEN review_count > 50 THEN 30 + 30
-            WHEN review_count > 20 THEN 30 + 20
-            ELSE 30
-          END +
-          CASE
-            WHEN rating >= 4.5 THEN 25
-            WHEN rating >= 4.0 THEN 15
-            ELSE 0
-          END) / 100.0) * 95, 95),
-        review_velocity = (review_count - COALESCE(last_score_review_count, 0)) / NULLIF(EXTRACT(DAY FROM (NOW() - last_scored_at)), 0)
-      WHERE last_scored_at IS NULL OR last_scored_at < NOW() - INTERVAL '24 hours'
-      RETURNING id
-    `);
-    console.log(`Updated ${result.rowCount} prospects`);
+    const count = await updateStaleScores();
+    console.log(`Updated ${count} prospects`);
   } catch (error) {
     console.error('Error updating conversion scores:', error);
     throw error;
+  }
+}
+
+async function rescueStaleLeads() {
+  console.log('Running lead rescue sweep...');
+  const tenantId = process.env.PROSPECTING_HOUSE_TENANT_ID;
+  if (!tenantId) {
+    console.log('[SKIP] PROSPECTING_HOUSE_TENANT_ID not configured');
+    return;
+  }
+
+  try {
+    const results = await runRescueSweep(tenantId);
+    const sent = results.filter((r) => r.ok).length;
+    const failed = results.length - sent;
+    console.log(`Rescue sweep sent ${sent} messages, ${failed} failed`);
+  } catch (error) {
+    // Don't throw - rescue failures shouldn't block score/cleanup jobs
+    console.error('Error running lead rescue sweep:', error);
   }
 }
 
@@ -102,6 +96,7 @@ async function runScheduler() {
     await updateConversionScores();
     await processBookedJobs();
     await cleanupOldRecords();
+    await rescueStaleLeads();
 
     console.log('[SUCCESS] Scheduler completed at', new Date().toISOString());
   } catch (error) {
