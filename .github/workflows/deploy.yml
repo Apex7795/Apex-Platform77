@@ -49,7 +49,9 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Disabled: no verified Render/Slack secrets configured yet for this repo.
+    # Remove `false &&` once RENDER_SERVICE_ID/RENDER_API_KEY/SLACK_WEBHOOK are confirmed.
+    if: false && github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
       - uses: actions/checkout@v4
