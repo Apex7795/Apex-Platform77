@@ -148,6 +148,46 @@ top of `scripts/cron.js`.
   path that calls `sendViaEmailProvider()` directly** — every send should
   go through `sendOutreachEmail()` or these protections get bypassed again.
 
+## Role hardening + a missing table (added this pass)
+
+- **`db/migrate_combined.sql` was missing the `audit_logs` table.** It
+  existed in `db/schema.sql` and `scripts/migrate.js` but never made it
+  into the combined migration, so a fresh deploy that only runs
+  `migrate_combined.sql` (as the setup steps below say to) would have no
+  `audit_logs` table, and
+  `app/api/action/launch-campaign/route.js`'s `INSERT INTO audit_logs`
+  would fail on the very first campaign launch. Added the table, its
+  index, RLS enablement, and tenant-isolation policy, matching the
+  pattern already used for `leads` / `ad_campaigns` in that file.
+
+- **`db/migrate_rls_hardening.sql` (new) — RLS was silently a no-op.**
+  Postgres never enforces Row Level Security against a table's owner (or
+  a superuser) — only against other roles. The app's `DATABASE_URL` has
+  been connecting with the same role that ran the migrations, i.e. the
+  table owner, so every `tenant_isolation_*` policy had no effect and
+  cross-tenant queries were not actually being blocked. This migration
+  creates a dedicated, non-owner `app_user` role, grants it exactly the
+  privileges the app needs (CRUD on tenant-scoped tables, read-only on
+  `campaign_templates`, no `BYPASSRLS`/`SUPERUSER`/`CREATEROLE`), and
+  turns on `FORCE ROW LEVEL SECURITY` so policies apply even if a
+  connection ever runs as the owner role again.
+
+  **This is an admin/operational step, not something the app can do for
+  itself** — creating a role requires `CREATEROLE` or superuser, which
+  the app's own runtime role must never have. Run it once per database,
+  after `migrate_combined.sql`, as the same admin/owner credential that
+  ran the schema migrations:
+
+  ```bash
+  psql "$DATABASE_URL" -f db/migrate_rls_hardening.sql
+  psql "$DATABASE_URL" -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
+  ```
+
+  Then point the app's `DATABASE_URL` at `app_user` (not the owner role)
+  before deploying. The migration does not set a password itself —
+  keeping generated secrets out of a committed SQL file — so this step
+  is required before `app_user` can log in.
+
 ## Fit scoring (added this pass)
 
 - **`db/migrate_prospect_scoring.sql`** — adds `rating`, `review_count`,
@@ -183,6 +223,12 @@ npm install
 node db/migrate_combined.sql              # or: psql $DATABASE_URL -f db/migrate_combined.sql
 node db/migrate_prospect_enrichment.sql   # run after migrate_combined.sql
 node db/migrate_prospect_scoring.sql      # run after migrate_prospect_enrichment.sql
+
+# Admin/operational step -- run once as the same privileged credential
+# used above, then point DATABASE_URL at app_user before deploying.
+# See "Role hardening + a missing table" below for why this matters.
+psql $DATABASE_URL -f db/migrate_rls_hardening.sql
+psql $DATABASE_URL -c "ALTER ROLE app_user WITH PASSWORD '<generate one>';"
 ```
 
 ## On the copyright registration angle
