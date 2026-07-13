@@ -9,9 +9,12 @@
     "test": "echo \"no tests specified\""
   },
   "dependencies": {
-    "next": "^14.2.35",
+    "next": "^16.2.10",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "pg": "^8.12.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }
