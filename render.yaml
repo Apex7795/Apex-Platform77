@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: apex-platform77
+    runtime: node
+    region: virginia
+    branch: claude/new-session-ixg4bl
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+    autoDeploy: true
+    # `plan` intentionally omitted: this session has no visibility into
+    # your actual current plan/billing tier, and guessing wrong here
+    # could change it if this file is ever Blueprint-synced. Set it
+    # explicitly yourself if/when you enable Blueprint sync.
+
+# This is the correct repo for the render.yaml/Dockerfile fix -- the
+# live "Apex-Platform77" Render service's PR Previews setting confirms
+# it's connected to Apex7795/Apex-Platform77 (this repo), not
+# Apex7795/apex-platform-, which is where equivalent fixes were
+# mistakenly applied earlier before this was caught.
+#
+# `runtime: node` + buildCommand/startCommand here fixes the deploy IF
+# the failure is a misconfigured Build/Start Command. But the same
+# confirmed failure mode as apex-platform- ("npm: command not found"
+# right after Render's own Node install step) has been reported for
+# this service too, which a buildCommand change can't fix -- npm isn't
+# on PATH yet when that command runs. The Dockerfile in this repo's
+# root is the actual fix for that: switch this service's Runtime from
+# "Node" to "Docker" in Settings, and Render will build from the
+# Dockerfile instead of its native buildpack, sidestepping the bug
+# entirely.
