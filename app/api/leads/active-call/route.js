@@ -3,14 +3,15 @@
 // Looks up prior call history for a caller, for a "who's calling" popup while
 // the phone is ringing. Matches on leads.caller_number, tenant-scoped.
 //
-// Tenant auth gap: see app/api/leads/route.js — req.user.tenant_id is not
-// actually populated by anything yet.
+// Single-tenant deployment: see app/api/leads/route.js — scoped to the
+// one PRIMARY_TENANT_ID this app serves, not a per-user session.
 import { runWithTenant } from '../../../../lib/db';
 
 export async function GET(req) {
-  const tenantId = req.user?.tenant_id;
+  const tenantId = process.env.PRIMARY_TENANT_ID;
   if (!tenantId) {
-    return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    console.error('PRIMARY_TENANT_ID is not set — refusing all lead requests');
+    return Response.json({ error: 'PRIMARY_TENANT_ID not configured' }, { status: 503 });
   }
 
   const { searchParams } = new URL(req.url);

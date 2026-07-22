@@ -1,14 +1,15 @@
 // app/api/leads/[id]/recording/route.js
 // GET /api/leads/:id/recording -> proxies the Twilio call recording audio.
 //
-// Tenant auth gap: see app/api/leads/route.js — req.user.tenant_id is not
-// actually populated by anything yet.
+// Single-tenant deployment: see app/api/leads/route.js — scoped to the
+// one PRIMARY_TENANT_ID this app serves, not a per-user session.
 import { runWithTenant } from '../../../../../lib/db';
 
 export async function GET(req, { params }) {
-  const tenantId = req.user?.tenant_id;
+  const tenantId = process.env.PRIMARY_TENANT_ID;
   if (!tenantId) {
-    return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    console.error('PRIMARY_TENANT_ID is not set — refusing all lead requests');
+    return Response.json({ error: 'PRIMARY_TENANT_ID not configured' }, { status: 503 });
   }
 
   const { id } = params;

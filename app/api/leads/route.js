@@ -1,17 +1,16 @@
 // app/api/leads/route.js
 // GET /api/leads?page=1
 //
-// Tenant auth gap: this relies on req.user.tenant_id, which implies a
-// session/login system for tenant owners that (per lib/adminAuth.js's own
-// comment) is referenced but never actually defined anywhere in this
-// codebase. Left as-is — that's a product decision, not a bug fix — so
-// this route will 401 until real tenant session auth exists upstream.
+// Single-tenant deployment: this app currently serves one business
+// (PRIMARY_TENANT_ID), not a multi-tenant signup product, so there's no
+// per-user session — every request is scoped to that one tenant.
 import { runWithTenant } from '../../../lib/db';
 
 export async function GET(req) {
-  const tenantId = req.user?.tenant_id;
+  const tenantId = process.env.PRIMARY_TENANT_ID;
   if (!tenantId) {
-    return Response.json({ error: 'Not authenticated' }, { status: 401 });
+    console.error('PRIMARY_TENANT_ID is not set — refusing all lead requests');
+    return Response.json({ error: 'PRIMARY_TENANT_ID not configured' }, { status: 503 });
   }
 
   const { searchParams } = new URL(req.url);

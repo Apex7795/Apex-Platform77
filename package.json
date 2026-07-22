@@ -9,6 +9,7 @@
     "cron": "node scripts/cron.js",
     "migrate": "node scripts/run-sql-file.js db/migrate_combined.sql",
     "migrate:rls-hardening": "node scripts/run-sql-file.js db/migrate_rls_hardening.sql",
+    "seed": "node scripts/run-sql-file.js db/seed_primary_tenant.sql",
     "job:rescue": "node -e \"require('./jobs/leadRescue').runLeadRescueJob()\"",
     "job:digest": "node -e \"require('./jobs/dailyDigest').runDailyDigestJob()\"",
     "job:prospect-discovery": "node -e \"require('./jobs/prospectDiscovery').runProspectDiscoveryJob()\""

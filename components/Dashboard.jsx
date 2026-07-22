@@ -4,18 +4,27 @@ import LeadsTable from './LeadsTable';
 export default function Dashboard() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   // Fetch leads on mount
   useEffect(() => {
     fetch('/api/leads')
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || `Request failed with status ${res.status}`);
+        }
+        return data;
+      })
       .then((data) => {
         setLeads(Array.isArray(data.leads) ? data.leads : []);
+        setLoadError(null);
         setLoading(false);
       })
       .catch((err) => {
         console.error('Failed to load leads:', err);
         setLeads([]);
+        setLoadError(err.message);
         setLoading(false);
       });
   }, []);
@@ -46,6 +55,11 @@ export default function Dashboard() {
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Lead Pipeline</h1>
+      {loadError && (
+        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
+          Failed to load leads: {loadError}
+        </div>
+      )}
       <LeadsTable leads={leads} onStatusUpdate={handleStatusUpdate} />
     </div>
   );
