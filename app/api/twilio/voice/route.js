@@ -32,8 +32,8 @@ export async function POST(req) {
 
     await runWithTenant(tenant.tenant_id, (client) =>
       client.query(
-        `INSERT INTO leads (tenant_id, call_sid, caller_number, status)
-         VALUES ($1, $2, $3, $4) ON CONFLICT (call_sid) DO NOTHING`,
+        `INSERT INTO leads (tenant_id, source, call_sid, caller_number, status)
+         VALUES ($1, 'call', $2, $3, $4) ON CONFLICT (call_sid) DO NOTHING`,
         [tenant.tenant_id, CallSid, From, 'new']
       )
     );
