@@ -13,6 +13,7 @@
     "promote-admin": "node scripts/promote-admin.js",
     "reset-password": "node scripts/reset-password.js",
     "list-users": "node scripts/list-users.js",
+    "fix-database-url": "node scripts/fix-database-url.js",
     "job:rescue": "node -e \"require('./jobs/leadRescue').runLeadRescueJob()\"",
     "job:digest": "node -e \"require('./jobs/dailyDigest').runDailyDigestJob()\"",
     "job:prospect-discovery": "node -e \"require('./jobs/prospectDiscovery').runProspectDiscoveryJob()\""
