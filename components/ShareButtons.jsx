@@ -10,12 +10,30 @@ import { useState, useEffect } from 'react';
 export default function ShareButtons() {
   const [pageUrl, setPageUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [canNativeShare, setCanNativeShare] = useState(false);
+
+  const shareText = 'Lead intelligence for field service — call tracking, conversion scoring, and automated prospect outreach.';
 
   useEffect(() => {
     setPageUrl(window.location.href);
+    // Only iOS/Android browsers implement navigator.share -- this is
+    // what actually gets Instagram/TikTok/WhatsApp/Messages etc. as
+    // share options, since neither has a public web share URL the way
+    // Facebook/X/LinkedIn do. Desktop browsers mostly don't have it, so
+    // this button only renders where it'll actually do something.
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      setCanNativeShare(true);
+    }
   }, []);
 
-  const shareText = 'Lead intelligence for field service — call tracking, conversion scoring, and automated prospect outreach.';
+  const handleNativeShare = async () => {
+    try {
+      await navigator.share({ title: 'Apex Junk Solutions', text: shareText, url: pageUrl });
+    } catch {
+      // User cancelled the share sheet, or the browser rejected it --
+      // either way, nothing to show an error for.
+    }
+  };
 
   const links = [
     {
@@ -48,6 +66,14 @@ export default function ShareButtons() {
   return (
     <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
       <span className="text-sm text-slate-500">Share:</span>
+      {canNativeShare && (
+        <button
+          onClick={handleNativeShare}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+        >
+          Share... (Instagram, TikTok, etc.)
+        </button>
+      )}
       {links.map((link) => (
         <a
           key={link.label}
