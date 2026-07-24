@@ -173,4 +173,25 @@ $$;
 REVOKE ALL ON FUNCTION get_user_for_login(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_user_for_login(text) TO app_user;
 
+-- Cross-tenant read for the admin dashboard (app/api/admin/tenants):
+-- lead counts per tenant, deliberately just a count, not the underlying
+-- rows. This is EXECUTE-granted to app_user like the functions above,
+-- but unlike those (which resolve one specific caller/number before a
+-- tenant is known), this one is a real, broad cross-tenant view -- the
+-- app route is what enforces "only role = 'admin' may call this,"
+-- same trust boundary lib/adminAuth.js already uses for the prospecting
+-- routes: gated at the app layer, not by a separate DB role.
+CREATE OR REPLACE FUNCTION get_lead_counts_by_tenant()
+RETURNS TABLE(tenant_id uuid, lead_count bigint)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+  SELECT tenant_id, count(*) FROM leads GROUP BY tenant_id;
+$$;
+
+REVOKE ALL ON FUNCTION get_lead_counts_by_tenant() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_lead_counts_by_tenant() TO app_user;
+
 COMMIT;

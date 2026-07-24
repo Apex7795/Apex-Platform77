@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import LeadsTable from './LeadsTable';
 
 export default function Dashboard() {
@@ -82,9 +83,16 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Lead Pipeline</h1>
           {business?.businessName && <p className="text-sm text-slate-500">{business.businessName}</p>}
         </div>
-        <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-slate-800 underline">
-          Log out
-        </button>
+        <div className="flex items-center gap-4">
+          {business?.role === 'admin' && (
+            <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-800 underline">
+              All Tenants (Admin)
+            </Link>
+          )}
+          <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-slate-800 underline">
+            Log out
+          </button>
+        </div>
       </div>
       {loadError && (
         <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
