@@ -21,7 +21,7 @@ export async function GET(req) {
     const leads = await runWithTenant(tenantId, async (client) => {
       const { rows } = await client.query(
         `SELECT id, caller_number, call_duration_seconds, status,
-                created_at, recording_url
+                created_at, recording_url, source, phone_verified, phone_line_type
          FROM leads
          ORDER BY created_at DESC
          LIMIT $1 OFFSET $2`,

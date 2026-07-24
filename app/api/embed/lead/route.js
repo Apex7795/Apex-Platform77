@@ -13,16 +13,53 @@
 // tenant that must already exist; it can't read, update, or delete
 // anything, and can't target a tenant that doesn't exist.
 //
-// NOT rate-limited or spam-filtered (no captcha, no abuse throttling) --
-// worth adding before this sees real traffic at scale, out of scope for
-// this first version.
+// This is also the ONLY lead source with an arbitrary, user-typed phone
+// number -- call and SMS leads come in through Twilio's own network, which
+// already proves the number is live. So this is where phone verification,
+// the honeypot, and rate limiting all live.
 import { pool, runWithTenant } from '../../../../lib/db';
+import { verifyPhoneNumber } from '../../../../lib/twilioLookup';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+// In-memory sliding-window limiter, keyed by IP. Good enough for a single
+// Render instance; resets on deploy/restart and doesn't share state across
+// instances if this ever scales horizontally -- worth moving to Redis at
+// that point, not needed yet.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const submissionsByIp = new Map();
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const timestamps = (submissionsByIp.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    submissionsByIp.set(ip, timestamps);
+    return true;
+  }
+  timestamps.push(now);
+  submissionsByIp.set(ip, timestamps);
+  // Opportunistic cleanup so this Map doesn't grow unbounded under
+  // sustained traffic -- cheap, and only runs on the rare 1/50 request.
+  if (submissionsByIp.size > 5000 && Math.random() < 0.02) {
+    for (const [key, ts] of submissionsByIp) {
+      if (ts.every((t) => now - t >= RATE_LIMIT_WINDOW_MS)) submissionsByIp.delete(key);
+    }
+  }
+  return false;
+}
+
+function getClientIp(req) {
+  // Render sits behind a proxy; x-forwarded-for's first entry is the
+  // original client.
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return 'unknown';
+}
 
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -36,7 +73,23 @@ export async function POST(req) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400, headers: CORS_HEADERS });
   }
 
-  const { tenantId, name, phone, message } = body || {};
+  const { tenantId, name, phone, message, website } = body || {};
+
+  // Honeypot: a real visitor never sees or fills this field (hidden via
+  // CSS in public/widget.js). A bot filling every input in the form will.
+  // Pretend success so the bot doesn't learn to skip the field next time,
+  // but don't write anything.
+  if (website) {
+    return Response.json({ ok: true }, { headers: CORS_HEADERS });
+  }
+
+  const ip = getClientIp(req);
+  if (isRateLimited(ip)) {
+    return Response.json(
+      { error: 'Too many submissions -- please try again later' },
+      { status: 429, headers: CORS_HEADERS }
+    );
+  }
 
   if (!tenantId || !name || !phone) {
     return Response.json(
@@ -59,11 +112,25 @@ export async function POST(req) {
       return Response.json({ error: 'Unknown tenant' }, { status: 404, headers: CORS_HEADERS });
     }
 
+    // Twilio Lookup: catches fake/malformed/dead numbers before they ever
+    // become a lead a tenant pays for. `verified === false` is a
+    // definitive "this number doesn't exist" from Twilio -- reject those
+    // outright. `null` means Lookup itself was unreachable (not the
+    // number's fault), so let those through unverified rather than
+    // blocking real customers over an outage.
+    const { verified, lineType } = await verifyPhoneNumber(phone);
+    if (verified === false) {
+      return Response.json(
+        { error: 'That phone number could not be verified -- please double-check it and try again.' },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
     await runWithTenant(tenantId, (client) =>
       client.query(
-        `INSERT INTO leads (tenant_id, source, caller_number, status, form_data)
-         VALUES ($1, 'form', $2, 'new', $3::jsonb)`,
-        [tenantId, phone, JSON.stringify({ name, message: message || null })]
+        `INSERT INTO leads (tenant_id, source, caller_number, status, form_data, phone_verified, phone_line_type, phone_verification_checked_at)
+         VALUES ($1, 'form', $2, 'new', $3::jsonb, $4, $5, now())`,
+        [tenantId, phone, JSON.stringify({ name, message: message || null }), verified, lineType]
       )
     );
 

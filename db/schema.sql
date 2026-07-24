@@ -79,7 +79,12 @@ CREATE TABLE leads (
     -- 0 = no rescue sent, 1 = immediate SMS sent, 2 = follow-up SMS sent
     sms_opt_out BOOLEAN NOT NULL DEFAULT false,
     context_notes TEXT, -- e.g. "mentioned full garage" for personalized follow-up
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Twilio Lookup-based phone verification (see db/migrate_combined.sql
+    -- for the ALTER TABLE form applied to already-existing installs).
+    phone_verified BOOLEAN, -- NULL = not checked, true/false = definitive answer
+    phone_line_type TEXT, -- mobile | landline | voip | ...
+    phone_verification_checked_at TIMESTAMPTZ
 );
 
 -- ============================================================

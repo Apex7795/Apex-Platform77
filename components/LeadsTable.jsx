@@ -1,4 +1,34 @@
 // components/LeadsTable.jsx
+function VerificationBadge({ lead }) {
+  // phone_verified is NULL for call/SMS leads (verification doesn't apply
+  // -- Twilio's own network already proves those numbers are live) and for
+  // form leads submitted before this feature shipped or while Lookup was
+  // briefly unreachable. Only render a badge when there's something real
+  // to say.
+  if (lead.source !== 'form' || lead.phone_verified === null || lead.phone_verified === undefined) {
+    return null;
+  }
+  if (lead.phone_verified) {
+    const label = lead.phone_line_type ? `Verified (${lead.phone_line_type})` : 'Verified';
+    return (
+      <span
+        className="ml-2 inline-block rounded-full bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5"
+        title="Confirmed real, active phone number via Twilio Lookup"
+      >
+        ✓ {label}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="ml-2 inline-block rounded-full bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5"
+      title="Twilio Lookup could not confirm this number is real"
+    >
+      Unverified
+    </span>
+  );
+}
+
 export default function LeadsTable({ leads, onStatusUpdate }) {
   return (
     <table className="min-w-full divide-y divide-gray-200">
@@ -20,6 +50,7 @@ export default function LeadsTable({ leads, onStatusUpdate }) {
             <td className="md:table-cell py-1 md:py-2">
               <span className="font-bold md:hidden">Caller: </span>
               {lead.caller_number}
+              <VerificationBadge lead={lead} />
             </td>
             <td className="md:table-cell py-1 md:py-2">
               <span className="font-bold md:hidden">Status: </span>

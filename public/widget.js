@@ -56,6 +56,11 @@
     '<input type="text" name="name" placeholder="Your name" required>' +
     '<input type="tel" name="phone" placeholder="Phone number" required>' +
     '<textarea name="message" placeholder="What do you need done?" rows="3"></textarea>' +
+    // Honeypot: real visitors never see this (off-screen, not display:none
+    // -- some bots skip fields hidden that way). tabindex/autocomplete keep
+    // it out of the way for keyboard nav and password managers.
+    '<input type="text" name="website" tabindex="-1" autocomplete="off"' +
+    ' style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden" aria-hidden="true">' +
     '<button type="submit" class="submit">Send</button>' +
     '<div class="apex-widget-status"></div>' +
     '</form>';
@@ -87,6 +92,7 @@
         name: form.name.value,
         phone: form.phone.value,
         message: form.message.value,
+        website: form.website.value,
       }),
     })
       .then(function (res) {

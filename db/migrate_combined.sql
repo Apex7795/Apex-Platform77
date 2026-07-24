@@ -79,6 +79,16 @@ CREATE TABLE IF NOT EXISTS leads (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Twilio Lookup-based phone verification, added on top of the existing
+-- table (ALTER not merged into the CREATE above -- production's `leads`
+-- table already exists, same reasoning as password_hash on users).
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN;
+-- NULL = not checked (e.g. call leads, or lookup failed/skipped),
+-- true/false = Twilio Lookup gave a definitive answer.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_line_type TEXT;
+-- mobile | landline | voip | fixedVoip | nonFixedVoip | personal | tollFree | premium | other
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_verification_checked_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
