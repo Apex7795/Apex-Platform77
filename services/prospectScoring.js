@@ -17,14 +17,22 @@ const WEIGHTS = {
   inTargetServiceArea: 25,
 };
 
-// Comma-separated "City, ST" list, e.g. "Sacramento, CA,Stockton, CA".
+// Semicolon-separated "City, ST" list, e.g. "Sacramento, CA;Stockton, CA".
+// Semicolons between entries, not commas -- a comma already separates city
+// from state within each entry, so splitting the whole list on commas
+// silently shredded "Sacramento, CA;Stockton, CA" into four fragments
+// ("sacramento", "ca", "stockton", "ca") instead of two cities. Harmless
+// here (this only ever did substring matching against it), but the exact
+// same parsing is now also used to pick actual Google Places search
+// cities in jobs/prospectDiscovery.js, where mangled entries meant real,
+// silently wrong searches -- caught there, fixed in both places.
 // Empty/unset means "no geographic filter" — every city scores full marks
 // for this criterion rather than zero, since an empty allowlist isn't a
 // meaningful signal either way.
 function getTargetServiceAreas() {
   const raw = process.env.TARGET_SERVICE_AREAS;
   if (!raw) return null;
-  return raw.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  return raw.split(';').map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
 function reviewVolumeScore(reviewCount) {

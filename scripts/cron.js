@@ -65,11 +65,13 @@ function scheduleJobs() {
     runDailyDigestJob().catch((err) => console.error('dailyDigest cron run failed:', err));
   });
 
-  // Prospect discovery: once daily, early morning. Target cities are
-  // hardcoded in jobs/prospectDiscovery.js's default argument — pass your
-  // real target list here instead of relying on the default.
+  // Prospect discovery: once daily, early morning. Cities and search
+  // terms come from TARGET_SERVICE_AREAS / TARGET_PROSPECT_QUERIES (see
+  // jobs/prospectDiscovery.js) -- set those in the environment instead of
+  // hardcoding a list here, so this actually covers everywhere/everything
+  // you've configured rather than one fixed city and search term.
   cron.schedule('0 6 * * *', () => {
-    runProspectDiscoveryJob(['Sacramento, CA']).catch((err) =>
+    runProspectDiscoveryJob().catch((err) =>
       console.error('prospectDiscovery cron run failed:', err)
     );
   });

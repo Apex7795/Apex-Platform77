@@ -9,6 +9,27 @@ const { scoreProspect } = require('../services/prospectScoring');
 
 const DEFAULT_QUERY = 'junk removal';
 
+// Semicolon-separated "City, ST" entries, same convention (and same env
+// var) as services/prospectScoring.js's TARGET_SERVICE_AREAS -- one list
+// of cities drives both "where do we search" and "does this prospect's
+// city count as a fit" instead of the two being configured separately
+// and drifting apart. Semicolons between entries, not commas: a comma
+// already separates city from state within each entry (see
+// prospectScoring.js's getTargetServiceAreas for the bug this avoids).
+// Empty/unset falls back to the single hardcoded default below, same as
+// before this was configurable at all.
+function getTargetCities() {
+  const raw = process.env.TARGET_SERVICE_AREAS;
+  if (!raw) return ['Sacramento, CA'];
+  return raw.split(';').map((s) => s.trim()).filter(Boolean);
+}
+
+function getTargetQueries() {
+  const raw = process.env.TARGET_PROSPECT_QUERIES;
+  if (!raw) return [DEFAULT_QUERY];
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
 // --- Discover + upsert prospects for a single city ---
 async function discoverCity({ city, query = DEFAULT_QUERY }) {
   const results = await searchBusinesses({ query, city });
@@ -80,13 +101,23 @@ async function enrichPendingProspects({ limit = 50 } = {}) {
   return { attempted: pending.length, enriched };
 }
 
-// --- Full run across a list of target cities ---
-async function runProspectDiscoveryJob(cities = ['Sacramento, CA']) {
-  for (const city of cities) {
-    try {
-      await discoverCity({ city });
-    } catch (err) {
-      console.error('Discovery failed for city', city, err.message);
+// --- Full run across every (query x city) combination ---
+// Defaults to TARGET_SERVICE_AREAS / TARGET_PROSPECT_QUERIES from env so
+// this actually covers every city and business type you've configured,
+// instead of the single hardcoded city + "junk removal" this used to be
+// stuck on. Pass explicit cities/queries to override for a one-off run
+// (e.g. from the admin dashboard triggering a specific search).
+async function runProspectDiscoveryJob({ cities, queries } = {}) {
+  const targetCities = cities || getTargetCities();
+  const targetQueries = queries || getTargetQueries();
+
+  for (const query of targetQueries) {
+    for (const city of targetCities) {
+      try {
+        await discoverCity({ city, query });
+      } catch (err) {
+        console.error('Discovery failed', { city, query, error: err.message });
+      }
     }
   }
   await enrichPendingProspects();
