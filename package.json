@@ -11,6 +11,7 @@
     "migrate:rls-hardening": "node scripts/run-sql-file.js db/migrate_rls_hardening.sql",
     "seed": "node scripts/run-sql-file.js db/seed_primary_tenant.sql",
     "promote-admin": "node scripts/promote-admin.js",
+    "reset-password": "node scripts/reset-password.js",
     "job:rescue": "node -e \"require('./jobs/leadRescue').runLeadRescueJob()\"",
     "job:digest": "node -e \"require('./jobs/dailyDigest').runDailyDigestJob()\"",
     "job:prospect-discovery": "node -e \"require('./jobs/prospectDiscovery').runProspectDiscoveryJob()\""
