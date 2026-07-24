@@ -11,10 +11,14 @@ export default function Home() {
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-4">
           Lead intelligence for field&nbsp;service
         </h1>
-        <p className="text-lg text-slate-600 mb-10">
+        <p className="text-lg text-slate-600 mb-4">
           Call tracking, conversion scoring, and automated prospect outreach — so haulers
           stop chasing leads and keep their trucks on the road.
         </p>
+
+        <Link href="/how-it-works" className="inline-block text-slate-700 underline font-medium mb-10">
+          See how it works →
+        </Link>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
           <Link
