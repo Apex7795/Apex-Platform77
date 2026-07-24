@@ -5,8 +5,11 @@
 // still falls back to.
 import { pool } from '../../../../lib/db';
 import { hashPassword, createSessionToken, sessionCookieHeader } from '../../../../lib/session';
+import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
 
 const UNIQUE_VIOLATION = '23505';
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
 
 function slugify(name) {
   return name
@@ -34,6 +37,11 @@ export async function POST(req) {
   }
   if (password.length < 8) {
     return Response.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+  }
+
+  const ip = getClientIp(req);
+  if (isRateLimited('signup', ip, { windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX })) {
+    return Response.json({ error: 'Too many signup attempts -- please wait a few minutes and try again' }, { status: 429 });
   }
 
   const baseSlug = slugify(businessName) || 'business';

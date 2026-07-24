@@ -7,6 +7,7 @@
 import postmark from 'postmark';
 import { pool } from '../../../../lib/db';
 import { generatePasswordResetToken } from '../../../../lib/session';
+import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
 
 let _postmarkClient;
 function getPostmarkClient() {
@@ -19,6 +20,12 @@ function getPostmarkClient() {
 // anyone probe which emails are registered.
 const GENERIC_RESPONSE = { ok: true, message: 'If an account exists for that email, a reset link has been sent.' };
 
+// Tighter than login/signup -- each request sends a real email, so this
+// is also the guard against someone using this endpoint to spam a
+// stranger's inbox with reset links.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 3;
+
 export async function POST(req) {
   let body;
   try {
@@ -30,6 +37,14 @@ export async function POST(req) {
   const { email } = body || {};
   if (!email) {
     return Response.json({ error: 'email is required' }, { status: 400 });
+  }
+
+  const ip = getClientIp(req);
+  if (isRateLimited('forgot_password', ip, { windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX })) {
+    // Still the generic shape, just with ok:false -- a 429 status code
+    // alone doesn't leak whether the email exists, only that this caller
+    // is going too fast.
+    return Response.json({ ok: false, message: 'Too many requests -- please wait a few minutes and try again' }, { status: 429 });
   }
 
   try {

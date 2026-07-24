@@ -1,6 +1,14 @@
 // app/api/auth/login/route.js
 import { pool } from '../../../../lib/db';
 import { verifyPassword, createSessionToken, sessionCookieHeader } from '../../../../lib/session';
+import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
+
+// Keyed by IP+email (not IP alone) so a brute-force attempt against one
+// account can't also lock out everyone else logging in from behind the
+// same NAT/office wifi. 10 attempts/10min is generous for a real typo-prone
+// human, tight for a password-guessing script.
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_MAX = 10;
 
 export async function POST(req) {
   let body;
@@ -13,6 +21,11 @@ export async function POST(req) {
   const { email, password } = body || {};
   if (!email || !password) {
     return Response.json({ error: 'email and password are required' }, { status: 400 });
+  }
+
+  const rateLimitKey = `${getClientIp(req)}:${email.toLowerCase()}`;
+  if (isRateLimited('login', rateLimitKey, { windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX })) {
+    return Response.json({ error: 'Too many login attempts -- please wait a few minutes and try again' }, { status: 429 });
   }
 
   try {

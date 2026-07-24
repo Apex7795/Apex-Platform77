@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { postJsonWithRetry } from '../../lib/fetchJsonWithRetry';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -24,20 +25,22 @@ export default function SignupPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Signup failed');
+      const { ok, status, data } = await postJsonWithRetry('/api/auth/signup', form);
+      if (!ok) {
+        if (status === 409) {
+          setError('An account with that email already exists. Try logging in, or use "Forgot password" below if you\'re not sure of the password.');
+        } else {
+          setError(data.error || 'Signup failed');
+        }
         setSubmitting(false);
         return;
       }
       router.push('/dashboard');
     } catch (err) {
-      setError('Something went wrong. Try again.');
+      setError(
+        'Something went wrong reaching the server. If this keeps happening, try logging in instead -- ' +
+          'the account may have already been created.'
+      );
       setSubmitting(false);
     }
   };
@@ -64,6 +67,9 @@ export default function SignupPage() {
         </form>
         <p className="text-sm text-slate-500 mt-4">
           Already have an account? <Link href="/login" className="text-slate-900 underline">Log in</Link>
+        </p>
+        <p className="text-sm text-slate-500 mt-2">
+          <Link href="/forgot-password" className="text-slate-900 underline">Forgot password?</Link>
         </p>
       </div>
     </main>

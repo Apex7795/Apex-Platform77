@@ -19,6 +19,7 @@
 // the honeypot, and rate limiting all live.
 import { pool, runWithTenant } from '../../../../lib/db';
 import { verifyPhoneNumber } from '../../../../lib/twilioLookup';
+import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -26,40 +27,8 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// In-memory sliding-window limiter, keyed by IP. Good enough for a single
-// Render instance; resets on deploy/restart and doesn't share state across
-// instances if this ever scales horizontally -- worth moving to Redis at
-// that point, not needed yet.
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT_MAX = 5;
-const submissionsByIp = new Map();
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const timestamps = (submissionsByIp.get(ip) || []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  if (timestamps.length >= RATE_LIMIT_MAX) {
-    submissionsByIp.set(ip, timestamps);
-    return true;
-  }
-  timestamps.push(now);
-  submissionsByIp.set(ip, timestamps);
-  // Opportunistic cleanup so this Map doesn't grow unbounded under
-  // sustained traffic -- cheap, and only runs on the rare 1/50 request.
-  if (submissionsByIp.size > 5000 && Math.random() < 0.02) {
-    for (const [key, ts] of submissionsByIp) {
-      if (ts.every((t) => now - t >= RATE_LIMIT_WINDOW_MS)) submissionsByIp.delete(key);
-    }
-  }
-  return false;
-}
-
-function getClientIp(req) {
-  // Render sits behind a proxy; x-forwarded-for's first entry is the
-  // original client.
-  const forwarded = req.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  return 'unknown';
-}
 
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -84,7 +53,7 @@ export async function POST(req) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited(ip)) {
+  if (isRateLimited('embed_lead', ip, { windowMs: RATE_LIMIT_WINDOW_MS, max: RATE_LIMIT_MAX })) {
     return Response.json(
       { error: 'Too many submissions -- please try again later' },
       { status: 429, headers: CORS_HEADERS }

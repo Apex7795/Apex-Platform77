@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { postJsonWithRetry } from '../../lib/fetchJsonWithRetry';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,20 +17,15 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
+      const { ok, data } = await postJsonWithRetry('/api/auth/login', { email, password });
+      if (!ok) {
         setError(data.error || 'Login failed');
         setSubmitting(false);
         return;
       }
       router.push('/dashboard');
     } catch (err) {
-      setError('Something went wrong. Try again.');
+      setError('Something went wrong reaching the server. Please try again in a moment.');
       setSubmitting(false);
     }
   };
