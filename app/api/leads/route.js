@@ -1,17 +1,16 @@
 // app/api/leads/route.js
 // GET /api/leads?page=1
 //
-// Single-tenant deployment: this app currently serves one business
-// (PRIMARY_TENANT_ID), not a multi-tenant signup product, so there's no
-// per-user session — every request is scoped to that one tenant.
+// Scoped to whichever tenant the logged-in user's session belongs to.
 import { runWithTenant } from '../../../lib/db';
+import { getSessionFromRequest } from '../../../lib/session';
 
 export async function GET(req) {
-  const tenantId = process.env.PRIMARY_TENANT_ID;
-  if (!tenantId) {
-    console.error('PRIMARY_TENANT_ID is not set — refusing all lead requests');
-    return Response.json({ error: 'PRIMARY_TENANT_ID not configured' }, { status: 503 });
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return Response.json({ error: 'Not logged in' }, { status: 401 });
   }
+  const tenantId = session.tenantId;
 
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get('page'), 10) || 1;

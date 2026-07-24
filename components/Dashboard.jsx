@@ -1,15 +1,33 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import LeadsTable from './LeadsTable';
 
 export default function Dashboard() {
+  const router = useRouter();
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [business, setBusiness] = useState(null);
 
   // Fetch leads on mount
   useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => {
+        if (!res.ok) {
+          router.replace('/login');
+          throw new Error('Not logged in');
+        }
+        return res.json();
+      })
+      .then((me) => setBusiness(me))
+      .catch(() => {});
+
     fetch('/api/leads')
       .then(async (res) => {
+        if (res.status === 401) {
+          router.replace('/login');
+          throw new Error('Not logged in');
+        }
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || `Request failed with status ${res.status}`);
@@ -27,7 +45,12 @@ export default function Dashboard() {
         setLoadError(err.message);
         setLoading(false);
       });
-  }, []);
+  }, [router]);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/login');
+  };
 
   // Handle status updates
   const handleStatusUpdate = async (id, newStatus) => {
@@ -54,7 +77,15 @@ export default function Dashboard() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Lead Pipeline</h1>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold">Lead Pipeline</h1>
+          {business?.businessName && <p className="text-sm text-slate-500">{business.businessName}</p>}
+        </div>
+        <button onClick={handleLogout} className="text-sm text-slate-500 hover:text-slate-800 underline">
+          Log out
+        </button>
+      </div>
       {loadError && (
         <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
           Failed to load leads: {loadError}

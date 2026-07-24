@@ -36,6 +36,11 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- "salt:hash" hex, from Node's built-in crypto.scrypt (lib/session.js) --
+-- ALTER not merged into the CREATE above since that only runs on a brand
+-- new table; production's `users` table already exists.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
 CREATE TABLE IF NOT EXISTS landing_pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

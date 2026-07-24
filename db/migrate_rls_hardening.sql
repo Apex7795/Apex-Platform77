@@ -107,17 +107,18 @@ DROP POLICY IF EXISTS tenant_isolation_tracking_numbers ON tracking_numbers;
 -- (RLS disabled above) or prospects/prospect_outreach_log/
 -- campaign_templates (never had RLS -- intentionally public/shared).
 --
--- Deliberately NOT applied to `leads`: the two SECURITY DEFINER
--- functions below execute with the *definer's* privileges (the
--- migration/owner role), which is exactly how they're able to resolve
--- a tenant_id with no tenant context set. FORCE ROW LEVEL SECURITY
--- would bind the owner too, so the functions would run under the same
--- RLS policy as everyone else and return NULL instead of the tenant --
--- this was caught empirically (see test plan) when an earlier version
--- of this migration forced RLS on leads and both functions silently
--- returned NULL. `leads` still isolates correctly for app_user, which
--- is non-owner and therefore RLS-bound regardless of FORCE.
-ALTER TABLE users FORCE ROW LEVEL SECURITY;
+-- Deliberately NOT applied to `leads` or `users`: their SECURITY DEFINER
+-- bootstrap-lookup functions execute with the *definer's* privileges
+-- (the migration/owner role), which is exactly how they're able to
+-- resolve a row with no tenant context set (leads: which tenant a
+-- caller/call_sid belongs to; users: login-by-email, before the tenant
+-- is known). FORCE ROW LEVEL SECURITY would bind the owner too, so the
+-- functions would run under the same RLS policy as everyone else and
+-- return nothing instead of the real row -- caught empirically (see
+-- test plan) when an earlier version of this migration forced RLS on
+-- leads and its functions silently returned NULL. Both tables still
+-- isolate correctly for app_user, which is non-owner and therefore
+-- RLS-bound regardless of FORCE.
 ALTER TABLE landing_pages FORCE ROW LEVEL SECURITY;
 ALTER TABLE ad_campaigns FORCE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
@@ -153,5 +154,23 @@ REVOKE ALL ON FUNCTION get_tenant_for_call_sid(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION get_tenant_for_caller_number(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_tenant_for_call_sid(text) TO app_user;
 GRANT EXECUTE ON FUNCTION get_tenant_for_caller_number(text) TO app_user;
+
+-- Bootstrap lookup for login: /api/auth/login must find a user by email
+-- before any tenant context exists (that's what it's determining). Same
+-- pattern as the two functions above, same pinned search_path reasoning.
+-- Returns password_hash too -- it never leaves the server process, only
+-- used in-process by lib/session.js's timing-safe comparison.
+CREATE OR REPLACE FUNCTION get_user_for_login(p_email text)
+RETURNS TABLE(id uuid, tenant_id uuid, role text, password_hash text)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+  SELECT id, tenant_id, role, password_hash FROM users WHERE email = p_email LIMIT 1;
+$$;
+
+REVOKE ALL ON FUNCTION get_user_for_login(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_user_for_login(text) TO app_user;
 
 COMMIT;

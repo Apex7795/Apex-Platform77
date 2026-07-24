@@ -17,17 +17,17 @@ export default function Home() {
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
           <Link
-            href="/dashboard"
+            href="/signup"
             className="inline-flex justify-center rounded-lg bg-slate-900 px-6 py-3 text-white font-semibold hover:bg-slate-700 transition-colors"
           >
-            Open Dashboard
+            Sign Up
           </Link>
-          <a
-            href="https://github.com/Apex7795/Apex-platform-77"
+          <Link
+            href="/login"
             className="inline-flex justify-center rounded-lg border border-slate-300 px-6 py-3 text-slate-700 font-semibold hover:bg-white transition-colors"
           >
-            View Source
-          </a>
+            Log In
+          </Link>
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 text-left">
@@ -35,11 +35,6 @@ export default function Home() {
           <Feature title="Conversion Scoring" body="Prospects ranked 0–95% by likelihood to book, from real signals." />
           <Feature title="Auto Outreach" body="Personalized email sequences with built-in opt-out compliance." />
         </div>
-
-        <p className="mt-14 text-xs text-slate-400">
-          Backend API is live at <code className="text-slate-500">/api/*</code>. Dashboard data
-          requires database and login setup.
-        </p>
       </div>
     </main>
   );
