@@ -100,6 +100,49 @@ export default function Dashboard() {
         </div>
       )}
       <LeadsTable leads={leads} onStatusUpdate={handleStatusUpdate} />
+      {business?.tenantId && <EmbedCodeSnippet tenantId={business.tenantId} />}
+    </div>
+  );
+}
+
+function EmbedCodeSnippet({ tenantId }) {
+  const [copied, setCopied] = useState(false);
+  // window.location.origin, not a hardcoded/env domain, so this snippet
+  // is always correct for wherever the app is actually running (same
+  // reasoning as components/ShareButtons.jsx).
+  const snippet =
+    typeof window !== 'undefined'
+      ? `<script src="${window.location.origin}/widget.js" data-tenant-id="${tenantId}"></script>`
+      : '';
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(snippet);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API can be unavailable -- fail quietly.
+    }
+  };
+
+  return (
+    <div className="mt-8 rounded-lg border border-slate-200 p-5">
+      <h2 className="font-semibold text-slate-900 mb-1">Get leads from your own website</h2>
+      <p className="text-sm text-slate-600 mb-3">
+        Paste this snippet into your own website's HTML. It adds a "Get a Quote" button that sends
+        quote requests straight into this dashboard.
+      </p>
+      <div className="flex items-start gap-2">
+        <code className="flex-1 block bg-slate-50 border border-slate-200 rounded p-3 text-xs overflow-x-auto whitespace-pre">
+          {snippet}
+        </code>
+        <button
+          onClick={handleCopy}
+          className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
     </div>
   );
 }
