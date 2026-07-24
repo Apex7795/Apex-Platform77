@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ShareButtons from '../components/ShareButtons';
 
 export default function Home() {
   return (
@@ -35,6 +36,8 @@ export default function Home() {
           <Feature title="Conversion Scoring" body="Prospects ranked 0–95% by likelihood to book, from real signals." />
           <Feature title="Auto Outreach" body="Personalized email sequences with built-in opt-out compliance." />
         </div>
+
+        <ShareButtons />
       </div>
     </main>
   );
