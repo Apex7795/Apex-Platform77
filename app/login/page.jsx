@@ -69,6 +69,9 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="text-sm text-slate-500 mt-4">
+          <Link href="/forgot-password" className="text-slate-900 underline">Forgot password?</Link>
+        </p>
+        <p className="text-sm text-slate-500 mt-2">
           No account? <Link href="/signup" className="text-slate-900 underline">Sign up</Link>
         </p>
       </div>
