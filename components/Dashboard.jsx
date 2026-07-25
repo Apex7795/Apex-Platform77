@@ -76,6 +76,11 @@ export default function Dashboard() {
 
   if (loading) return <div>Loading your leads...</div>;
 
+  // Hard paywall: a lapsed or canceled subscription blocks the dashboard
+  // entirely rather than just showing a banner -- the whole point of
+  // wiring up billing is that non-paying accounts stop having access.
+  const locked = business?.subscriptionStatus === 'past_due' || business?.subscriptionStatus === 'canceled';
+
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
@@ -94,13 +99,82 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
-      {loadError && (
-        <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
-          Failed to load leads: {loadError}
-        </div>
+      {business?.subscriptionStatus && <BillingBanner status={business.subscriptionStatus} />}
+      {locked ? (
+        <BillingPaywall />
+      ) : (
+        <>
+          {loadError && (
+            <div className="mb-4 rounded border border-red-300 bg-red-50 p-3 text-red-700">
+              Failed to load leads: {loadError}
+            </div>
+          )}
+          <LeadsTable leads={leads} onStatusUpdate={handleStatusUpdate} />
+          {business?.tenantId && <EmbedCodeSnippet tenantId={business.tenantId} />}
+        </>
       )}
-      <LeadsTable leads={leads} onStatusUpdate={handleStatusUpdate} />
-      {business?.tenantId && <EmbedCodeSnippet tenantId={business.tenantId} />}
+    </div>
+  );
+}
+
+function useCheckout() {
+  const [starting, setStarting] = useState(false);
+  const startCheckout = async () => {
+    setStarting(true);
+    try {
+      const res = await fetch('/api/billing/checkout', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to start checkout');
+        setStarting(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      alert('Failed to start checkout. Please try again.');
+      setStarting(false);
+    }
+  };
+  return { starting, startCheckout };
+}
+
+function BillingBanner({ status }) {
+  const { starting, startCheckout } = useCheckout();
+  if (status === 'active') return null;
+
+  const copy = {
+    trialing: { text: "You're on a free trial.", tone: 'bg-slate-50 border-slate-200 text-slate-700' },
+    past_due: { text: 'Your last payment failed.', tone: 'bg-red-50 border-red-300 text-red-700' },
+    canceled: { text: 'Your subscription is canceled.', tone: 'bg-red-50 border-red-300 text-red-700' },
+  }[status];
+  if (!copy) return null;
+
+  return (
+    <div className={`mb-4 flex items-center justify-between rounded border px-4 py-2 text-sm ${copy.tone}`}>
+      <span>{copy.text}</span>
+      <button onClick={startCheckout} disabled={starting} className="underline font-medium disabled:opacity-50">
+        {starting ? 'Loading...' : status === 'trialing' ? 'Add payment method' : 'Update billing'}
+      </button>
+    </div>
+  );
+}
+
+function BillingPaywall() {
+  const { starting, startCheckout } = useCheckout();
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+      <h2 className="text-lg font-semibold text-slate-900 mb-2">Subscription required</h2>
+      <p className="text-sm text-slate-600 mb-4">
+        Your access is paused until billing is up to date. Your leads are safe and will be here as soon as
+        you resubscribe.
+      </p>
+      <button
+        onClick={startCheckout}
+        disabled={starting}
+        className="rounded-lg bg-slate-900 text-white font-semibold px-6 py-2 disabled:opacity-50"
+      >
+        {starting ? 'Loading...' : 'Resubscribe'}
+      </button>
     </div>
   );
 }

@@ -15,7 +15,8 @@ export async function GET(req) {
     // authenticated route instead of needing a SECURITY DEFINER function.
     const { rows } = await runWithTenant(session.tenantId, (client) =>
       client.query(
-        'SELECT u.email, u.role, t.business_name, t.subdomain FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.id = $1',
+        `SELECT u.email, u.role, t.business_name, t.subdomain, t.subscription_status
+         FROM users u JOIN tenants t ON t.id = u.tenant_id WHERE u.id = $1`,
         [session.userId]
       )
     );
@@ -29,6 +30,7 @@ export async function GET(req) {
       email: user.email,
       businessName: user.business_name,
       subdomain: user.subdomain,
+      subscriptionStatus: user.subscription_status,
     });
   } catch (err) {
     console.error('Session lookup error:', err.message);
