@@ -109,6 +109,22 @@ CREATE TABLE IF NOT EXISTS campaign_templates (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Low-friction "reserve a spot" capture (e.g. Facebook group promo) --
+-- deliberately separate from `tenants`/`users`: this is just an interest
+-- list (name/email/business, no password) for people not ready to
+-- complete full signup yet. No RLS -- nothing here is tenant-scoped, it
+-- doesn't exist as a tenant yet.
+CREATE TABLE IF NOT EXISTS reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    business_name TEXT,
+    source TEXT, -- e.g. 'facebook_group'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_reservations_created_at ON reservations(created_at);
+
 -- Was present in db/schema.sql and scripts/migrate.js but missing from
 -- this combined migration, so a fresh deploy that only runs this file
 -- never got the table -- app/api/action/launch-campaign/route.js's
