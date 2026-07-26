@@ -35,10 +35,30 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 text-left">
+        <div className="grid sm:grid-cols-3 gap-4 text-left mb-14">
           <Feature title="Call Tracking" body="Every inbound call is logged, recorded, and matched to the caller's history." />
           <Feature title="Conversion Scoring" body="Prospects ranked 0–95% by likelihood to book, from real signals." />
           <Feature title="Auto Outreach" body="Personalized email sequences with built-in opt-out compliance." />
+        </div>
+
+        <div className="rounded-xl border-2 border-red-700 bg-white p-8 max-w-sm mx-auto mb-10">
+          <p className="text-sm font-semibold text-red-700 mb-1">Simple pricing</p>
+          <p className="text-4xl font-bold text-slate-900 mb-1">
+            $49<span className="text-lg font-medium text-slate-500">/month</span>
+          </p>
+          <p className="text-sm text-slate-500 mb-4">14-day free trial. Cancel anytime.</p>
+          <ul className="text-sm text-slate-600 text-left space-y-1 mb-4">
+            <li>✓ Call tracking &amp; recording</li>
+            <li>✓ Verified leads from your website</li>
+            <li>✓ Missed-call auto follow-up</li>
+            <li>✓ One dashboard for every channel</li>
+          </ul>
+          <Link
+            href="/signup"
+            className="block text-center rounded-lg bg-red-700 px-6 py-3 text-white font-semibold hover:bg-red-800 transition-colors"
+          >
+            Start Free Trial
+          </Link>
         </div>
 
         <ShareButtons />
