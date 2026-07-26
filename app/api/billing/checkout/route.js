@@ -38,6 +38,10 @@ export async function POST(req) {
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       metadata: { tenant_id: session.tenantId },
       subscription_data: { trial_period_days: 14 },
+      // Lets a customer type in a Stripe promotion code at checkout (e.g.
+      // a longer trial for Facebook group members) without any app code
+      // change per promo -- the code itself is managed entirely in Stripe.
+      allow_promotion_codes: true,
       success_url: `${process.env.APP_URL}/dashboard?billing=success`,
       cancel_url: `${process.env.APP_URL}/dashboard?billing=canceled`,
     });
