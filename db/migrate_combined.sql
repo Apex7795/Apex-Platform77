@@ -142,6 +142,46 @@ DROP POLICY IF EXISTS tenant_isolation_receipts ON receipts;
 CREATE POLICY tenant_isolation_receipts ON receipts
     USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
 
+-- Self-service local lead prospecting, per tenant. Separate from the
+-- admin-only `prospects` table below (that one is Apex's own sales
+-- funnel, scored on "fit as an Apex customer") -- this is a tenant
+-- finding their OWN customers (property managers, contractors, etc. in
+-- their own service area) via the same Google Places search, so it needs
+-- its own tenant-scoped, RLS-protected table rather than reusing prospects'
+-- schema/semantics.
+CREATE TABLE IF NOT EXISTS tenant_prospects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    business_name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    website TEXT,
+    address TEXT,
+    city TEXT,
+    state TEXT,
+    search_query TEXT,
+    source TEXT NOT NULL DEFAULT 'google_places',
+    source_place_id TEXT,
+    rating NUMERIC(2,1),
+    review_count INT,
+    business_status TEXT,
+    status TEXT NOT NULL DEFAULT 'discovered'
+        CHECK (status IN ('discovered', 'enriched', 'contacted', 'won', 'lost')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Per-tenant uniqueness, not global: two different tenants prospecting
+    -- overlapping territory can both legitimately discover the same
+    -- business independently.
+    UNIQUE (tenant_id, source, source_place_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tenant_prospects_tenant ON tenant_prospects(tenant_id, created_at DESC);
+
+ALTER TABLE tenant_prospects ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_tenant_prospects ON tenant_prospects;
+CREATE POLICY tenant_isolation_tenant_prospects ON tenant_prospects
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
+-- Grant itself lives in db/migrate_rls_hardening.sql's centralized list.
+
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

@@ -88,7 +88,7 @@ GRANT USAGE ON SCHEMA public TO app_user;
 -- Tenant-scoped tables the app reads and writes through runWithTenant().
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   tenants, users, landing_pages, tracking_numbers, leads, ad_campaigns,
-  audit_logs, prospects, prospect_outreach_log, quotes, receipts
+  audit_logs, prospects, prospect_outreach_log, quotes, receipts, tenant_prospects
   TO app_user;
 
 -- reservations has no tenant_id (it's pre-tenant interest capture) so it
