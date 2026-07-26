@@ -58,7 +58,7 @@ export default function HowItWorks() {
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-12">
           <Link
             href="/signup"
-            className="inline-flex justify-center rounded-lg bg-slate-900 px-6 py-3 text-white font-semibold hover:bg-slate-700 transition-colors"
+            className="inline-flex justify-center rounded-lg bg-red-700 px-6 py-3 text-white font-semibold hover:bg-red-800 transition-colors"
           >
             Sign Up
           </Link>

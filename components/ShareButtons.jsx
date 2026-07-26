@@ -69,7 +69,7 @@ export default function ShareButtons() {
       {canNativeShare && (
         <button
           onClick={handleNativeShare}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+          className="rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 transition-colors"
         >
           Share... (Instagram, TikTok, etc.)
         </button>

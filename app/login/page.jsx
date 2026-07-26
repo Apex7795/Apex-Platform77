@@ -59,16 +59,16 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-lg bg-slate-900 text-white font-semibold py-2 disabled:opacity-50"
+            className="w-full rounded-lg bg-red-700 text-white font-semibold py-2 disabled:opacity-50 hover:bg-red-800 transition-colors"
           >
             {submitting ? 'Logging in...' : 'Log in'}
           </button>
         </form>
         <p className="text-sm text-slate-500 mt-4">
-          <Link href="/forgot-password" className="text-slate-900 underline">Forgot password?</Link>
+          <Link href="/forgot-password" className="text-red-700 underline">Forgot password?</Link>
         </p>
         <p className="text-sm text-slate-500 mt-2">
-          No account? <Link href="/signup" className="text-slate-900 underline">Sign up</Link>
+          No account? <Link href="/signup" className="text-red-700 underline">Sign up</Link>
         </p>
       </div>
     </main>

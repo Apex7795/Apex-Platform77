@@ -13,7 +13,7 @@ export default function GetLeads() {
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col items-center justify-center px-6 py-16">
       <div className="max-w-2xl w-full text-center">
-        <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white text-xs font-semibold px-3 py-1 mb-6">
+        <div className="inline-flex items-center gap-2 rounded-full bg-red-700 text-white text-xs font-semibold px-3 py-1 mb-6">
           APEX JUNK SOLUTIONS
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-4">
@@ -27,7 +27,7 @@ export default function GetLeads() {
 
         <Link
           href="/signup"
-          className="inline-flex justify-center rounded-lg bg-slate-900 px-8 py-4 text-white text-lg font-semibold hover:bg-slate-700 transition-colors mb-14"
+          className="inline-flex justify-center rounded-lg bg-red-700 px-8 py-4 text-white text-lg font-semibold hover:bg-red-800 transition-colors mb-14"
         >
           Get Started Free
         </Link>
