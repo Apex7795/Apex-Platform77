@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 function formatCents(cents) {
@@ -13,6 +13,18 @@ export default function QuotesPage() {
   const [status, setStatus] = useState('idle'); // idle | analyzing | done | error
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [pastQuotes, setPastQuotes] = useState([]);
+
+  const loadPastQuotes = () => {
+    fetch('/api/quotes')
+      .then((res) => res.json())
+      .then((data) => setPastQuotes(Array.isArray(data.quotes) ? data.quotes : []))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadPastQuotes();
+  }, []);
 
   const handlePhotoChange = (e) => {
     setPhotos(Array.from(e.target.files || []).slice(0, 5));
@@ -42,6 +54,7 @@ export default function QuotesPage() {
       }
       setResult(data);
       setStatus('done');
+      loadPastQuotes();
     } catch {
       setError('Something went wrong reaching the server. Please try again.');
       setStatus('error');
@@ -165,6 +178,31 @@ export default function QuotesPage() {
           >
             New Quote
           </button>
+        </div>
+      )}
+
+      {pastQuotes.length > 0 && (
+        <div className="mt-8">
+          <h2 className="font-semibold text-slate-900 mb-3">Past Quotes</h2>
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            {pastQuotes.map((q) => (
+              <div key={q.id} className="flex items-center justify-between px-4 py-3 border-b border-slate-100 last:border-0 text-sm">
+                <div>
+                  <p className="font-medium">{q.volume_cubic_yards} yd³ · {q.access_difficulty?.replace('_', ' ')}</p>
+                  <p className="text-slate-500 text-xs">{new Date(q.created_at).toLocaleDateString()}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <p className="font-semibold">{formatCents(q.suggested_price_cents)}</p>
+                  <Link
+                    href={`/receipts?quoteId=${q.id}&price=${(q.suggested_price_cents / 100).toFixed(2)}`}
+                    className="text-red-700 underline text-xs whitespace-nowrap"
+                  >
+                    Record Receipt
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
