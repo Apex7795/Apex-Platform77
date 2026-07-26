@@ -89,6 +89,36 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_line_type TEXT;
 -- mobile | landline | voip | fixedVoip | nonFixedVoip | personal | tollFree | premium | other
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_verification_checked_at TIMESTAMPTZ;
 
+-- AI photo-based job quote estimates. Tenant-scoped like leads --
+-- lead_id is optional (a quote can be run standalone, before a lead
+-- even exists yet, e.g. estimating a job over the phone while looking
+-- at photos texted in).
+CREATE TABLE IF NOT EXISTS quotes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+    photo_count INT NOT NULL DEFAULT 0,
+    volume_cubic_yards NUMERIC(6,1),
+    material_breakdown JSONB, -- {"furniture": 40, "boxes": 60, ...} percentages
+    access_difficulty TEXT, -- easy | medium | hard | very_hard
+    time_estimate_hours NUMERIC(5,1),
+    cost_labor_cents INT,
+    cost_disposal_cents INT,
+    cost_travel_cents INT,
+    suggested_price_cents INT,
+    raw_analysis JSONB, -- full AI response, kept for reference/debugging
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_quotes_tenant ON quotes(tenant_id, created_at DESC);
+
+ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_quotes ON quotes;
+CREATE POLICY tenant_isolation_quotes ON quotes
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
+-- Grant itself lives in db/migrate_rls_hardening.sql's centralized list,
+-- alongside every other app_user table grant -- not here, so there's one
+-- place to check for "does app_user actually have access to this table."
+
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

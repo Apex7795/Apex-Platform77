@@ -88,8 +88,14 @@ GRANT USAGE ON SCHEMA public TO app_user;
 -- Tenant-scoped tables the app reads and writes through runWithTenant().
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   tenants, users, landing_pages, tracking_numbers, leads, ad_campaigns,
-  audit_logs, prospects, prospect_outreach_log
+  audit_logs, prospects, prospect_outreach_log, quotes
   TO app_user;
+
+-- reservations has no tenant_id (it's pre-tenant interest capture) so it
+-- isn't in the RLS-scoped list above, but it's still written via the same
+-- app_user connection (app/api/reservations/route.js uses plain pool
+-- queries, not runWithTenant) and needs its own grant for the same reason.
+GRANT SELECT, INSERT ON reservations TO app_user;
 
 -- campaign_templates is shared reference data the app only reads
 -- (see app/api/action/launch-campaign/route.js) -- no write grant.

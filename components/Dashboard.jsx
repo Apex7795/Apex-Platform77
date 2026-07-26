@@ -89,6 +89,9 @@ export default function Dashboard() {
           {business?.businessName && <p className="text-sm text-slate-500">{business.businessName}</p>}
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/quotes" className="text-sm text-slate-500 hover:text-slate-800 underline">
+            Photo Quote Estimator
+          </Link>
           {business?.role === 'admin' && (
             <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-800 underline">
               All Tenants (Admin)
