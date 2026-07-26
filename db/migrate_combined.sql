@@ -89,6 +89,11 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_line_type TEXT;
 -- mobile | landline | voip | fixedVoip | nonFixedVoip | personal | tollFree | premium | other
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS phone_verification_checked_at TIMESTAMPTZ;
 
+-- Free-text tags an operator attaches to a lead (e.g. "priority",
+-- "repeat customer") -- simple array rather than a separate tags table
+-- since there's no cross-tenant tag catalog to manage yet.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+
 -- AI photo-based job quote estimates. Tenant-scoped like leads --
 -- lead_id is optional (a quote can be run standalone, before a lead
 -- even exists yet, e.g. estimating a job over the phone while looking

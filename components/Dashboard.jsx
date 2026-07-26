@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LeadsTable from './LeadsTable';
+import LeadsKanban from './LeadsKanban';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -9,6 +10,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [business, setBusiness] = useState(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [view, setView] = useState('list');
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkStatus, setBulkStatus] = useState('contacted');
 
   // Fetch leads on mount
   useEffect(() => {
@@ -74,6 +80,67 @@ export default function Dashboard() {
     }
   };
 
+  const handleTagsUpdate = async (id, newTags) => {
+    const previousLeads = [...leads];
+    setLeads(leads.map((l) => (l.id === id ? { ...l, tags: newTags } : l)));
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags: newTags }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+    } catch (err) {
+      console.error(err);
+      setLeads(previousLeads);
+      alert('Failed to update tags. Please try again.');
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const applyBulkStatus = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const previousLeads = [...leads];
+    setLeads(leads.map((l) => (selectedIds.has(l.id) ? { ...l, status: bulkStatus } : l)));
+    try {
+      const results = await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/leads/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: bulkStatus }),
+          })
+        )
+      );
+      if (results.some((res) => !res.ok)) throw new Error('One or more updates failed');
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error(err);
+      setLeads(previousLeads);
+      alert('Failed to update one or more leads. Please try again.');
+    }
+  };
+
+  const filteredLeads = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return leads.filter((l) => {
+      if (statusFilter !== 'all' && l.status !== statusFilter) return false;
+      if (term && !l.caller_number?.toLowerCase().includes(term) && !(l.tags || []).some((t) => t.toLowerCase().includes(term))) {
+        return false;
+      }
+      return true;
+    });
+  }, [leads, search, statusFilter]);
+
   if (loading) return <div>Loading your leads...</div>;
 
   // Hard paywall: a lapsed or canceled subscription blocks the dashboard
@@ -118,7 +185,76 @@ export default function Dashboard() {
               Failed to load leads: {loadError}
             </div>
           )}
-          <LeadsTable leads={leads} onStatusUpdate={handleStatusUpdate} />
+
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search phone number or tag..."
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm flex-1 min-w-[180px]"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="all">All statuses</option>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="won">Won</option>
+              <option value="lost">Lost</option>
+            </select>
+            <div className="flex rounded border border-slate-300 overflow-hidden text-sm">
+              <button
+                onClick={() => setView('list')}
+                className={`px-3 py-1.5 ${view === 'list' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+              >
+                List
+              </button>
+              <button
+                onClick={() => setView('board')}
+                className={`px-3 py-1.5 ${view === 'board' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+              >
+                Board
+              </button>
+            </div>
+          </div>
+
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 mb-3 rounded bg-red-50 border border-red-200 px-3 py-2 text-sm">
+              <span>{selectedIds.size} selected</span>
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1"
+              >
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="won">Won</option>
+                <option value="lost">Lost</option>
+              </select>
+              <button onClick={applyBulkStatus} className="rounded bg-red-700 text-white px-3 py-1 font-medium hover:bg-red-800">
+                Apply
+              </button>
+              <button onClick={() => setSelectedIds(new Set())} className="text-slate-500 underline">
+                Clear
+              </button>
+            </div>
+          )}
+
+          {view === 'list' ? (
+            <LeadsTable
+              leads={filteredLeads}
+              onStatusUpdate={handleStatusUpdate}
+              onTagsUpdate={handleTagsUpdate}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+            />
+          ) : (
+            <LeadsKanban leads={filteredLeads} onStatusUpdate={handleStatusUpdate} />
+          )}
+
           {business?.tenantId && <EmbedCodeSnippet tenantId={business.tenantId} />}
         </>
       )}
