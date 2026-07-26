@@ -56,6 +56,9 @@
     '<input type="text" name="name" placeholder="Your name" required>' +
     '<input type="tel" name="phone" placeholder="Phone number" required>' +
     '<textarea name="message" placeholder="What do you need done?" rows="3"></textarea>' +
+    '<label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px">' +
+    'Add photos for an instant AI price estimate (optional)</label>' +
+    '<input type="file" name="photos" accept="image/*" multiple style="margin-bottom:8px">' +
     // Honeypot: real visitors never see this (off-screen, not display:none
     // -- some bots skip fields hidden that way). tabindex/autocomplete keep
     // it out of the way for keyboard nav and password managers.
@@ -80,7 +83,55 @@
     var form = e.target;
     var status = panel.querySelector('.apex-widget-status');
     var submitBtn = form.querySelector('.submit');
+    var photoFiles = form.photos && form.photos.files ? form.photos.files : [];
+
     submitBtn.disabled = true;
+
+    if (photoFiles.length > 0) {
+      // Photos attached: get an instant AI price estimate instead of a
+      // plain callback-later lead. Real per-request cost on our end, so
+      // this hits a separate, tighter-rate-limited endpoint.
+      status.textContent = 'Analyzing your photos...';
+      status.style.color = '#64748b';
+
+      var fd = new FormData();
+      fd.append('tenantId', tenantId);
+      fd.append('name', form.name.value);
+      fd.append('phone', form.phone.value);
+      fd.append('message', form.message.value);
+      fd.append('website', form.website.value);
+      for (var i = 0; i < photoFiles.length; i++) {
+        fd.append('photos', photoFiles[i]);
+      }
+
+      fetch(apiOrigin + '/api/embed/quote', { method: 'POST', body: fd })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (result.ok) {
+            var dollars = (result.data.suggestedPriceCents / 100).toFixed(0);
+            status.textContent =
+              'Estimated price: $' + dollars + ". We'll follow up to confirm and schedule.";
+            status.style.color = '#16a34a';
+            form.reset();
+          } else {
+            status.textContent = result.data.error || 'Something went wrong -- please try again.';
+            status.style.color = '#dc2626';
+          }
+        })
+        .catch(function () {
+          status.textContent = 'Something went wrong -- please try again.';
+          status.style.color = '#dc2626';
+        })
+        .finally(function () {
+          submitBtn.disabled = false;
+        });
+      return;
+    }
+
     status.textContent = 'Sending...';
     status.style.color = '#64748b';
 
