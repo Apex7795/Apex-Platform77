@@ -7,6 +7,7 @@ import { runWithTenant } from '../../../../lib/db';
 import { getSessionFromRequest } from '../../../../lib/session';
 import { analyzeJobPhotos, calculatePricing } from '../../../../lib/quoteAnalysis';
 import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
+import { checkAndConsume } from '../../../../lib/usageCredits';
 
 const MAX_PHOTOS = 5;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB/photo -- generous for a phone camera shot, not unbounded
@@ -54,6 +55,19 @@ export async function POST(req) {
   }
 
   try {
+    // Check the monthly free allowance / purchased credits BEFORE paying
+    // for the vision API call -- no point spending real money on a
+    // request we're about to reject anyway.
+    const usageResult = await runWithTenant(session.tenantId, (client) =>
+      checkAndConsume(client, session.tenantId, 'photo_quote')
+    );
+    if (!usageResult.allowed) {
+      return Response.json(
+        { error: 'Monthly free photo quotes used up -- buy more to keep going this period.', usageExceeded: true, feature: 'photo_quote' },
+        { status: 402 }
+      );
+    }
+
     const photoBase64List = await Promise.all(
       photoFiles.map(async (file) => {
         const buffer = Buffer.from(await file.arrayBuffer());

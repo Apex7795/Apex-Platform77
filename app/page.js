@@ -9,15 +9,16 @@ export default function Home() {
           APEX JUNK SOLUTIONS
         </div>
         <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-slate-900 mb-4">
-          Lead intelligence for field&nbsp;service
+          Stop losing jobs to chaos.
         </h1>
         <p className="text-lg text-slate-600 mb-4">
-          Call tracking, conversion scoring, and automated prospect outreach — so haulers
-          stop chasing leads and keep their trucks on the road.
+          Every call, text, Facebook message, and website quote request in one verified
+          pipeline. AI-powered pricing your customers can use themselves. Your own local
+          lead-generation engine. One dashboard, built for junk removal and field service.
         </p>
 
-        <Link href="/how-it-works" className="inline-block text-slate-700 underline font-medium mb-10">
-          See how it works →
+        <Link href="/how-it-works" className="inline-block text-red-700 underline font-semibold mb-10">
+          See everything it does →
         </Link>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mb-14">
@@ -35,10 +36,11 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 text-left mb-14">
-          <Feature title="Call Tracking" body="Every inbound call is logged, recorded, and matched to the caller's history." />
-          <Feature title="Conversion Scoring" body="Prospects ranked 0–95% by likelihood to book, from real signals." />
-          <Feature title="Auto Outreach" body="Personalized email sequences with built-in opt-out compliance." />
+        <div className="grid sm:grid-cols-2 gap-4 text-left mb-14">
+          <Feature title="Verified Leads" body="Every website quote request is checked against Twilio phone verification before it ever counts as a lead." />
+          <Feature title="AI Photo Pricing" body="Upload job photos, get a transparent price in seconds. Your customers can do the same thing right on your website." />
+          <Feature title="Full CRM Pipeline" body="List or Kanban board, search, tags, bulk actions, and automatic dead-lead follow-up." />
+          <Feature title="Your Own Lead Engine" body="Search real local business listings for new customers in your own territory, whenever you want." />
         </div>
 
         <div className="rounded-xl border-2 border-red-700 bg-white p-8 max-w-sm mx-auto mb-10">
@@ -48,10 +50,10 @@ export default function Home() {
           </p>
           <p className="text-sm text-slate-500 mb-4">14-day free trial. Cancel anytime.</p>
           <ul className="text-sm text-slate-600 text-left space-y-1 mb-4">
-            <li>✓ Call tracking &amp; recording</li>
-            <li>✓ Verified leads from your website</li>
-            <li>✓ Missed-call auto follow-up</li>
-            <li>✓ One dashboard for every channel</li>
+            <li>✓ Every lead channel, one dashboard</li>
+            <li>✓ Verified leads &amp; full CRM pipeline</li>
+            <li>✓ Receipts &amp; one-click tax exports</li>
+            <li>✓ AI photo pricing &amp; local lead search included monthly, more available anytime</li>
           </ul>
           <Link
             href="/signup"

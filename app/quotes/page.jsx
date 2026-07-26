@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import UsageMeter from '../../components/UsageMeter';
 
 function formatCents(cents) {
   return `$${(cents / 100).toFixed(2)}`;
@@ -14,6 +15,7 @@ export default function QuotesPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [pastQuotes, setPastQuotes] = useState([]);
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
 
   const loadPastQuotes = () => {
     fetch('/api/quotes')
@@ -47,6 +49,7 @@ export default function QuotesPage() {
 
       const res = await fetch('/api/quotes/analyze', { method: 'POST', body: formData });
       const data = await res.json();
+      setUsageRefreshKey((k) => k + 1);
       if (!res.ok) {
         setError(data.error || 'Failed to analyze photos');
         setStatus('error');
@@ -77,6 +80,8 @@ export default function QuotesPage() {
           Back to dashboard
         </Link>
       </div>
+
+      <UsageMeter feature="photo_quote" refreshKey={usageRefreshKey} />
 
       {status !== 'done' && (
         <form onSubmit={handleSubmit} className="space-y-4 bg-white rounded-lg border border-slate-200 p-6">

@@ -16,6 +16,7 @@ import { getSessionFromRequest } from '../../../../lib/session';
 import { searchBusinesses } from '../../../../lib/prospecting/googlePlaces';
 import { enrichContact } from '../../../../lib/prospecting/enrichment';
 import { isRateLimited } from '../../../../lib/rateLimit';
+import { checkAndConsume } from '../../../../lib/usageCredits';
 
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_MAX = 3; // per tenant per day
@@ -50,6 +51,20 @@ export async function POST(req) {
   }
 
   try {
+    // Check the monthly free allowance / purchased credits BEFORE paying
+    // for Google Places + Hunter.io -- the per-tenant daily rate limit
+    // above is a hard abuse ceiling regardless of plan; this is the
+    // actual "have they got usage left" gate.
+    const usageResult = await runWithTenant(session.tenantId, (client) =>
+      checkAndConsume(client, session.tenantId, 'prospecting_search')
+    );
+    if (!usageResult.allowed) {
+      return Response.json(
+        { error: 'Monthly free searches used up -- buy more to keep going this period.', usageExceeded: true, feature: 'prospecting_search' },
+        { status: 402 }
+      );
+    }
+
     const results = await searchBusinesses({ query, city });
 
     let enrichedCount = 0;

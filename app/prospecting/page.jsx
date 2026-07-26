@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import UsageMeter from '../../components/UsageMeter';
 
 const STATUS_LABELS = {
   discovered: 'Discovered',
@@ -19,6 +20,7 @@ export default function ProspectingPage() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState(null);
   const [lastResult, setLastResult] = useState(null);
+  const [usageRefreshKey, setUsageRefreshKey] = useState(0);
 
   const loadProspects = () => {
     setLoading(true);
@@ -49,6 +51,7 @@ export default function ProspectingPage() {
         body: JSON.stringify({ city, query }),
       });
       const data = await res.json();
+      setUsageRefreshKey((k) => k + 1);
       if (!res.ok) {
         setError(data.error || 'Failed to run prospecting');
         setSearching(false);
@@ -87,6 +90,8 @@ export default function ProspectingPage() {
           Back to dashboard
         </Link>
       </div>
+
+      <UsageMeter feature="prospecting_search" refreshKey={usageRefreshKey} />
 
       <form onSubmit={handleSearch} className="bg-white rounded-lg border border-slate-200 p-6 space-y-4 mb-8">
         <h2 className="font-semibold text-slate-900">Search for prospects in your area</h2>

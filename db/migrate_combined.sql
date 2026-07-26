@@ -187,6 +187,26 @@ CREATE POLICY tenant_isolation_tenant_prospects ON tenant_prospects
     USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
 -- Grant itself lives in db/migrate_rls_hardening.sql's centralized list.
 
+-- Usage-based credits for the two features that cost real per-call money
+-- (AI photo quoting via OpenAI vision, local lead prospecting via Google
+-- Places + Hunter.io). Everything else in the app is flat-rate on the
+-- subscription price; these two draw down a monthly free allowance, then
+-- purchased credits, once exhausted -- see lib/usageCredits.js.
+CREATE TABLE IF NOT EXISTS usage_credits (
+    tenant_id UUID PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    photo_quotes_used_this_period INT NOT NULL DEFAULT 0,
+    prospecting_searches_used_this_period INT NOT NULL DEFAULT 0,
+    photo_quote_credits INT NOT NULL DEFAULT 0,
+    prospecting_credits INT NOT NULL DEFAULT 0,
+    period_started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE usage_credits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_usage_credits ON usage_credits;
+CREATE POLICY tenant_isolation_usage_credits ON usage_credits
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
+
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

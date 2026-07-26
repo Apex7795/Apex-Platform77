@@ -10,6 +10,7 @@
 // version) must match exactly what Stripe signed.
 import { pool } from '../../../../lib/db';
 import { getStripe } from '../../../../lib/stripe';
+import { addCredits } from '../../../../lib/usageCredits';
 
 export async function POST(req) {
   const rawBody = await req.text();
@@ -32,12 +33,25 @@ export async function POST(req) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const checkoutSession = event.data.object;
-        await pool.query(
-          `UPDATE tenants
-           SET stripe_customer_id = $1, stripe_subscription_id = $2, subscription_status = 'trialing', updated_at = now()
-           WHERE id = $3`,
-          [checkoutSession.customer, checkoutSession.subscription, checkoutSession.metadata.tenant_id]
-        );
+        // Two different flows share this event: the subscription
+        // checkout (app/api/billing/checkout) and a one-time credit-pack
+        // purchase (app/api/billing/credits/checkout) -- metadata.type
+        // distinguishes them since a payment-mode session has no
+        // `subscription` field to branch on.
+        if (checkoutSession.metadata?.type === 'credit_pack') {
+          await addCredits(
+            checkoutSession.metadata.tenant_id,
+            checkoutSession.metadata.feature,
+            parseInt(checkoutSession.metadata.credits, 10)
+          );
+        } else {
+          await pool.query(
+            `UPDATE tenants
+             SET stripe_customer_id = $1, stripe_subscription_id = $2, subscription_status = 'trialing', updated_at = now()
+             WHERE id = $3`,
+            [checkoutSession.customer, checkoutSession.subscription, checkoutSession.metadata.tenant_id]
+          );
+        }
         break;
       }
       case 'customer.subscription.updated': {
