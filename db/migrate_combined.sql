@@ -119,6 +119,29 @@ CREATE POLICY tenant_isolation_quotes ON quotes
 -- alongside every other app_user table grant -- not here, so there's one
 -- place to check for "does app_user actually have access to this table."
 
+-- Completed-job record: what a customer actually got charged, once a job
+-- is done. Separate from `quotes` (the pre-job estimate) since the final
+-- price can differ from the estimate, and a receipt can exist for a job
+-- that never went through the photo estimator at all -- quote_id/lead_id
+-- are both optional links, not requirements.
+CREATE TABLE IF NOT EXISTS receipts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
+    quote_id UUID REFERENCES quotes(id) ON DELETE SET NULL,
+    customer_name TEXT,
+    final_price_cents INT NOT NULL,
+    notes TEXT,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant_id, completed_at DESC);
+
+ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation_receipts ON receipts;
+CREATE POLICY tenant_isolation_receipts ON receipts
+    USING (tenant_id = current_setting('app.current_tenant_id', true)::UUID);
+
 CREATE TABLE IF NOT EXISTS ad_campaigns (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

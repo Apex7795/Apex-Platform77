@@ -92,6 +92,9 @@ export default function Dashboard() {
           <Link href="/quotes" className="text-sm text-slate-500 hover:text-slate-800 underline">
             Photo Quote Estimator
           </Link>
+          <Link href="/receipts" className="text-sm text-slate-500 hover:text-slate-800 underline">
+            Receipts
+          </Link>
           {business?.role === 'admin' && (
             <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-800 underline">
               All Tenants (Admin)

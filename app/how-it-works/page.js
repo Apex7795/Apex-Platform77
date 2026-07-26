@@ -50,7 +50,19 @@ export default function HowItWorks() {
           log.
         </Section>
 
-        <Section title="5. Install it like an app">
+        <Section title="5. Snap photos, get an AI price estimate">
+          Upload a few photos of a job and Apex's AI estimates the volume, material mix, and
+          access difficulty, then works out a suggested price from real, transparent cost math —
+          labor, disposal, and travel — not a black-box number you have to just trust.
+        </Section>
+
+        <Section title="6. Every completed job gets a real receipt">
+          Log what a job actually got charged once it's done, and Apex keeps a running record of
+          every receipt — total income, average job size, and a one-click CSV export for your own
+          tax records, all in one place instead of scattered across texts and notebooks.
+        </Section>
+
+        <Section title="7. Install it like an app">
           Add the dashboard to your phone's home screen (from Safari or Chrome, "Add to Home
           Screen") and it opens like a normal app — no App Store required.
         </Section>
