@@ -146,7 +146,12 @@ export default function Dashboard() {
   // Hard paywall: a lapsed or canceled subscription blocks the dashboard
   // entirely rather than just showing a banner -- the whole point of
   // wiring up billing is that non-paying accounts stop having access.
-  const locked = business?.subscriptionStatus === 'past_due' || business?.subscriptionStatus === 'canceled';
+  // Admin accounts (platform staff, not paying tenants) are exempt --
+  // there's no reason the owner's own account should get locked out by
+  // the same subscription paywall that gates customers.
+  const locked =
+    business?.role !== 'admin' &&
+    (business?.subscriptionStatus === 'past_due' || business?.subscriptionStatus === 'canceled');
 
   return (
     <div className="p-6">
