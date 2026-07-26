@@ -1,17 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 function formatCents(cents) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export default function ReceiptsPage() {
+function ReceiptsContent() {
+  const searchParams = useSearchParams();
+  // Arriving from a quote's "Record Receipt" link (see app/quotes/page.jsx)
+  // pre-fills the price and links the receipt back to that quote, instead
+  // of starting from a blank form and losing the connection between them.
+  const quoteId = searchParams.get('quoteId');
+  const prefillPrice = searchParams.get('price');
+
   const [receipts, setReceipts] = useState([]);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ customerName: '', finalPrice: '', notes: '' });
+  const [form, setForm] = useState({ customerName: '', finalPrice: prefillPrice || '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -45,6 +53,7 @@ export default function ReceiptsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          quoteId: quoteId || null,
           customerName: form.customerName || null,
           finalPriceCents: Math.round(price * 100),
           notes: form.notes || null,
@@ -97,6 +106,11 @@ export default function ReceiptsPage() {
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-slate-200 p-6 space-y-4 mb-8">
         <h2 className="font-semibold text-slate-900">Record a completed job</h2>
+        {quoteId && (
+          <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            Linked to a saved quote -- price pre-filled from that estimate, adjust if the final price differed.
+          </p>
+        )}
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Customer name (optional)</label>
@@ -166,5 +180,13 @@ export default function ReceiptsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ReceiptsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 max-w-3xl mx-auto text-sm text-slate-500">Loading...</div>}>
+      <ReceiptsContent />
+    </Suspense>
   );
 }
