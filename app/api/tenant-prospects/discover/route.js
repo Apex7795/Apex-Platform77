@@ -128,7 +128,11 @@ export async function POST(req) {
     // Same distinction as /api/quotes/analyze -- "this feature isn't set
     // up yet" (Google Places key missing/invalid) shouldn't read as a bug
     // or as "you searched wrong," since neither is true.
-    const notConfigured = err.message.includes('GOOGLE_PLACES_API_KEY') || err.status === 401 || err.status === 403;
+    const notConfigured =
+      err.message.includes('GOOGLE_PLACES_API_KEY') ||
+      err.status === 400 ||
+      err.status === 401 ||
+      err.status === 403;
     if (notConfigured) {
       return Response.json(
         { error: 'Local lead search isn’t turned on for this account yet -- this is a setup issue on our end. Try again shortly.' },
