@@ -111,6 +111,22 @@ export async function POST(req) {
     });
   } catch (err) {
     console.error('Quote analysis error:', err.message, { tenantId: session.tenantId });
-    return Response.json({ error: 'Failed to analyze photos' }, { status: 500 });
+    // Distinguish "this feature isn't set up yet" (OpenAI key missing, or
+    // present but unfunded/invalid -- OpenAI's SDK throws a 401/429-style
+    // error in that case too) from an actual bug, so this doesn't read as
+    // "something's broken with your photos" when the real cause is the
+    // platform's own OpenAI account not being configured/funded.
+    const notConfigured =
+      err.message.includes('OPENAI_API_KEY') ||
+      err.status === 401 ||
+      err.status === 429 ||
+      /quota|billing/i.test(err.message);
+    if (notConfigured) {
+      return Response.json(
+        { error: 'AI photo pricing isn’t turned on for this account yet -- this is a setup issue on our end, not with your photos. Try again shortly.' },
+        { status: 503 }
+      );
+    }
+    return Response.json({ error: 'Failed to analyze photos -- please try again' }, { status: 500 });
   }
 }
