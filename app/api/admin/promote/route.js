@@ -30,11 +30,15 @@ export async function GET(req) {
   const token = searchParams.get('token');
   const email = searchParams.get('email');
 
-  const configuredToken = process.env.ADMIN_API_TOKEN;
+  // .trim() because Render's Environment tab has repeatedly captured a
+  // trailing newline/whitespace character from mobile copy-paste (see
+  // /api/health/admin-token) -- the token value itself has been correct
+  // every time, only invisible whitespace around it varies.
+  const configuredToken = (process.env.ADMIN_API_TOKEN || '').trim();
   if (!configuredToken) {
     return new Response('ADMIN_API_TOKEN is not set -- cannot authorize this action.', { status: 503 });
   }
-  if (!token || !timingSafeStringEqual(token, configuredToken)) {
+  if (!token || !timingSafeStringEqual(token.trim(), configuredToken)) {
     return new Response('Unauthorized -- missing or incorrect token.', { status: 401 });
   }
   if (!email) {

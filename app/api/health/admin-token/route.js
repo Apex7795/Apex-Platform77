@@ -15,11 +15,16 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const token = process.env.ADMIN_API_TOKEN || '';
+  const trimmed = token.trim();
   return Response.json({
     set: Boolean(token),
     length: token.length,
     startsWith: token.slice(0, 4),
     endsWith: token.slice(-4),
     hasWhitespace: /\s/.test(token),
+    // The routes that check this token now trim() before comparing, so
+    // this is what actually determines auth success, regardless of
+    // whatever stray whitespace Render's Environment tab captured.
+    trimmedLength: trimmed.length,
   });
 }
