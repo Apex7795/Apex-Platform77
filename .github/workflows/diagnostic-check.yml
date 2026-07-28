@@ -1,0 +1,32 @@
+name: Diagnostic Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check apex-platform77-1 database
+        run: |
+          echo "=== apex-platform77-1.onrender.com/api/health/db ==="
+          curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77-1.onrender.com/api/health/db || echo "REQUEST FAILED"
+          echo
+
+      - name: Check apex-platform77 database
+        run: |
+          echo "=== apex-platform77.onrender.com/api/health/db ==="
+          curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77.onrender.com/api/health/db || echo "REQUEST FAILED"
+          echo
+
+      - name: Check apex-platform77-1 prospecting config
+        run: |
+          echo "=== apex-platform77-1.onrender.com/api/health/prospecting ==="
+          curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77-1.onrender.com/api/health/prospecting || echo "REQUEST FAILED"
+          echo
+
+      - name: Check apex-platform77-1 quotes config
+        run: |
+          echo "=== apex-platform77-1.onrender.com/api/health/quotes ==="
+          curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77-1.onrender.com/api/health/quotes || echo "REQUEST FAILED"
+          echo
