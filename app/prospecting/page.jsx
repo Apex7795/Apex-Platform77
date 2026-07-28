@@ -96,9 +96,11 @@ export default function ProspectingPage() {
       <form onSubmit={handleSearch} className="bg-white rounded-lg border border-slate-200 p-6 space-y-4 mb-8">
         <h2 className="font-semibold text-slate-900">Search for prospects in your area</h2>
         <p className="text-sm text-slate-600">
-          Searches real business listings (Google Places) for potential customers -- property
+          Searches real business listings (OpenStreetMap) for potential customers -- property
           managers, contractors, real estate agents, whatever fits your business -- and tries to
-          find a contact email for each one.
+          find a contact email for each one. Coverage varies by area since this is
+          volunteer-mapped data, not a paid business directory -- fewer results than a Google-style
+          search, but free.
         </p>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

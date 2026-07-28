@@ -8,12 +8,13 @@
 // for junk-removal businesses to prospect as Apex customers -- different
 // data, different purpose, different auth model.
 //
-// Google Places + Hunter.io both cost real money per call and this is a
-// tenant-triggered, unauthenticated-by-admin action, so it's rate limited
-// per tenant (not just per IP) and enrichment is capped per run.
+// Discovery itself is free (OpenStreetMap's Overpass API -- no key, no
+// billing, see lib/prospecting/overpass.js for why). Enrichment (Hunter.io)
+// still costs real money per call, so this stays rate limited per tenant
+// and enrichment stays capped per run regardless.
 import { runWithTenant } from '../../../../lib/db';
 import { getSessionFromRequest } from '../../../../lib/session';
-import { searchBusinesses } from '../../../../lib/prospecting/googlePlaces';
+import { searchBusinesses } from '../../../../lib/prospecting/overpass';
 import { enrichContact } from '../../../../lib/prospecting/enrichment';
 import { isRateLimited } from '../../../../lib/rateLimit';
 import { checkAndConsume } from '../../../../lib/usageCredits';
@@ -99,7 +100,7 @@ export async function POST(req) {
              tenant_id, business_name, phone, email, website, address, city, state,
              search_query, source, source_place_id, rating, review_count, business_status,
              status
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'google_places', $10, $11, $12, $13, $14)
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'openstreetmap', $10, $11, $12, $13, $14)
            ON CONFLICT (tenant_id, source, source_place_id) DO NOTHING`,
           [
             session.tenantId,
@@ -125,17 +126,13 @@ export async function POST(req) {
     return Response.json({ found: results.length, inserted, enriched: enrichedCount });
   } catch (err) {
     console.error('Tenant prospect discovery error:', err.message, { tenantId: session.tenantId });
-    // Same distinction as /api/quotes/analyze -- "this feature isn't set
-    // up yet" (Google Places key missing/invalid) shouldn't read as a bug
-    // or as "you searched wrong," since neither is true.
-    const notConfigured =
-      err.message.includes('GOOGLE_PLACES_API_KEY') ||
-      err.status === 400 ||
-      err.status === 401 ||
-      err.status === 403;
-    if (notConfigured) {
+    // Overpass is a free shared public resource, not a paid API with
+    // guaranteed capacity -- a 429/504 means "it's busy right now," not
+    // "something's broken" or "you searched wrong."
+    const busy = err.status === 429 || err.status === 504;
+    if (busy) {
       return Response.json(
-        { error: 'Local lead search isn’t turned on for this account yet -- this is a setup issue on our end. Try again shortly.' },
+        { error: 'The map data service is busy right now -- please try again in a minute.' },
         { status: 503 }
       );
     }

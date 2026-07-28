@@ -9,7 +9,10 @@ import { pool } from '../../../../lib/db';
 
 export async function GET() {
   const env = {
-    GOOGLE_PLACES_API_KEY: Boolean(process.env.GOOGLE_PLACES_API_KEY),
+    // Discovery itself no longer needs GOOGLE_PLACES_API_KEY -- switched
+    // to OpenStreetMap's free Overpass API (lib/prospecting/overpass.js).
+    // HUNTER_API_KEY still gates email enrichment only, and its absence
+    // degrades gracefully (listings without an email) rather than failing.
     HUNTER_API_KEY: Boolean(process.env.HUNTER_API_KEY),
     TWILIO_ACCOUNT_SID: Boolean(process.env.TWILIO_ACCOUNT_SID),
     TWILIO_AUTH_TOKEN: Boolean(process.env.TWILIO_AUTH_TOKEN),
