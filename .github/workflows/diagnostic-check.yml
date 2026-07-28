@@ -2,6 +2,10 @@ name: Diagnostic Check
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnostic-check.yml'
 
 jobs:
   check:
