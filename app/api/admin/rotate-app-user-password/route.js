@@ -34,7 +34,13 @@ export async function GET(req) {
   const migrationPool = new Pool({ connectionString: process.env.MIGRATION_DATABASE_URL });
 
   try {
-    await migrationPool.query('ALTER ROLE app_user WITH PASSWORD $1', [newPassword]);
+    // ALTER ROLE's grammar doesn't accept a $1 bind parameter for the
+    // password clause (fails with "syntax error at or near '$1'') --
+    // unlike a normal DML query, this has to be a literal in the SQL
+    // text. Safe to interpolate directly: newPassword is always 48 lowercase
+    // hex characters from crypto.randomBytes(24).toString('hex'), never
+    // user input, so there's nothing to quote or escape.
+    await migrationPool.query(`ALTER ROLE app_user WITH PASSWORD '${newPassword}'`);
   } catch (err) {
     console.error('Failed to rotate app_user password:', err.message);
     return new Response(`Failed to set the password: ${err.message}`, { status: 500 });
