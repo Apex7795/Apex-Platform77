@@ -8,7 +8,15 @@ function formatCents(cents) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+const LOAD_SIZE_LABELS = {
+  quarter: 'Quarter load',
+  half: 'Half load',
+  three_quarter: 'Three-quarter load',
+  full: 'Full truck',
+};
+
 export default function QuotesPage() {
+  const [mode, setMode] = useState('photo'); // photo | manual
   const [photos, setPhotos] = useState([]);
   const [travelMiles, setTravelMiles] = useState('');
   const [status, setStatus] = useState('idle'); // idle | analyzing | done | error
@@ -16,6 +24,9 @@ export default function QuotesPage() {
   const [result, setResult] = useState(null);
   const [pastQuotes, setPastQuotes] = useState([]);
   const [usageRefreshKey, setUsageRefreshKey] = useState(0);
+  const [suggestManual, setSuggestManual] = useState(false);
+  const [loadSize, setLoadSize] = useState('half');
+  const [accessDifficulty, setAccessDifficulty] = useState('medium');
 
   const loadPastQuotes = () => {
     fetch('/api/quotes')
@@ -41,6 +52,7 @@ export default function QuotesPage() {
     setStatus('analyzing');
     setError(null);
     setResult(null);
+    setSuggestManual(false);
 
     try {
       const formData = new FormData();
@@ -52,6 +64,37 @@ export default function QuotesPage() {
       setUsageRefreshKey((k) => k + 1);
       if (!res.ok) {
         setError(data.error || 'Failed to analyze photos');
+        setStatus('error');
+        // A 503 here specifically means "AI isn't configured/funded yet"
+        // (see app/api/quotes/analyze/route.js) -- offer the no-AI path
+        // instead of a dead end.
+        if (res.status === 503) setSuggestManual(true);
+        return;
+      }
+      setResult(data);
+      setStatus('done');
+      loadPastQuotes();
+    } catch {
+      setError('Something went wrong reaching the server. Please try again.');
+      setStatus('error');
+    }
+  };
+
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    setStatus('analyzing');
+    setError(null);
+    setResult(null);
+
+    try {
+      const res = await fetch('/api/quotes/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loadSize, accessDifficulty, travelMiles }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to save quote');
         setStatus('error');
         return;
       }
@@ -69,6 +112,7 @@ export default function QuotesPage() {
     setTravelMiles('');
     setResult(null);
     setError(null);
+    setSuggestManual(false);
     setStatus('idle');
   };
 
@@ -81,9 +125,26 @@ export default function QuotesPage() {
         </Link>
       </div>
 
-      <UsageMeter feature="photo_quote" refreshKey={usageRefreshKey} />
+      {mode === 'photo' && <UsageMeter feature="photo_quote" refreshKey={usageRefreshKey} />}
 
       {status !== 'done' && (
+        <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm mb-4 w-fit">
+          <button
+            onClick={() => { setMode('photo'); setError(null); setSuggestManual(false); }}
+            className={`px-4 py-1.5 ${mode === 'photo' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+          >
+            Upload Photos
+          </button>
+          <button
+            onClick={() => { setMode('manual'); setError(null); setSuggestManual(false); }}
+            className={`px-4 py-1.5 ${mode === 'manual' ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}
+          >
+            Estimate Manually
+          </button>
+        </div>
+      )}
+
+      {status !== 'done' && mode === 'photo' && (
         <form onSubmit={handleSubmit} className="space-y-4 bg-white rounded-lg border border-slate-200 p-6">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -113,7 +174,20 @@ export default function QuotesPage() {
               placeholder="e.g. 12"
             />
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div>
+              <p className="text-sm text-red-600">{error}</p>
+              {suggestManual && (
+                <button
+                  type="button"
+                  onClick={() => { setMode('manual'); setError(null); setSuggestManual(false); }}
+                  className="text-sm text-red-700 underline font-medium mt-1"
+                >
+                  Try a manual estimate instead →
+                </button>
+              )}
+            </div>
+          )}
           <button
             type="submit"
             disabled={status === 'analyzing'}
@@ -124,6 +198,66 @@ export default function QuotesPage() {
           <p className="text-xs text-slate-400">
             This is an estimate based only on what's visible in the photos -- use your own judgment
             before quoting a customer.
+          </p>
+        </form>
+      )}
+
+      {status !== 'done' && mode === 'manual' && (
+        <form onSubmit={handleManualSubmit} className="space-y-4 bg-white rounded-lg border border-slate-200 p-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Load size</label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(LOAD_SIZE_LABELS).map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  onClick={() => setLoadSize(value)}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    loadSize === value ? 'border-red-700 bg-red-50 text-red-700 font-semibold' : 'border-slate-300 text-slate-600'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Access difficulty</label>
+            <select
+              value={accessDifficulty}
+              onChange={(e) => setAccessDifficulty(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            >
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+              <option value="very_hard">Very hard</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Travel distance (miles, optional)
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={travelMiles}
+              onChange={(e) => setTravelMiles(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              placeholder="e.g. 12"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button
+            type="submit"
+            disabled={status === 'analyzing'}
+            className="w-full rounded-lg bg-red-700 text-white font-semibold py-2 disabled:opacity-50 hover:bg-red-800 transition-colors"
+          >
+            {status === 'analyzing' ? 'Calculating...' : 'Get Suggested Price'}
+          </button>
+          <p className="text-xs text-slate-400">
+            Same transparent labor/disposal/travel math as the photo estimator -- just based on your
+            own judgment of the load instead of photos.
           </p>
         </form>
       )}
