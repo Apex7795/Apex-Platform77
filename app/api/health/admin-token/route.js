@@ -5,6 +5,14 @@
 // the ADMIN_API_TOKEN actually stored on this deployment, instead of
 // the full secret. Enough to tell "wrong value," "extra whitespace," or
 // "not deployed yet" apart from each other without exposing the token.
+
+// Without this, Next.js can statically prerender this route at BUILD
+// time (it has no dynamic inputs -- no cookies/headers/params) and then
+// serve that same frozen snapshot forever, ignoring any later change to
+// the actual env var. Exactly the bug that made this diagnostic keep
+// reporting "not set" even after the real value was fixed and redeployed.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const token = process.env.ADMIN_API_TOKEN || '';
   return Response.json({

@@ -3,6 +3,11 @@
 // endpoints: "Add payment method" going blank with no visible error
 // almost always means Stripe isn't fully configured, not a code bug.
 // Reports presence only, never actual key values.
+
+// See app/api/health/db/route.js -- without this, Next.js can freeze
+// this route's response at build time and never re-check env vars again.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const env = {
     STRIPE_SECRET_KEY: Boolean(process.env.STRIPE_SECRET_KEY),

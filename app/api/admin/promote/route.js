@@ -13,6 +13,11 @@
 import { Pool } from 'pg';
 import crypto from 'crypto';
 
+// See app/api/health/db/route.js -- without this, Next.js can freeze
+// this route (including its ADMIN_API_TOKEN comparison) at build time
+// and never re-check the real env var again on later requests.
+export const dynamic = 'force-dynamic';
+
 function timingSafeStringEqual(a, b) {
   const aBuf = Buffer.from(a || '', 'utf8');
   const bBuf = Buffer.from(b || '', 'utf8');

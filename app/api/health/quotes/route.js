@@ -8,6 +8,10 @@
 // instead of requiring a log dig every time this comes up.
 import { pool } from '../../../../lib/db';
 
+// See app/api/health/db/route.js -- without this, Next.js can freeze
+// this route's response at build time and never re-check env vars again.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const env = {
     OPENAI_API_KEY_set: Boolean(process.env.OPENAI_API_KEY),

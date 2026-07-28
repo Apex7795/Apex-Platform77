@@ -15,6 +15,10 @@ import { Pool } from 'pg';
 import crypto from 'crypto';
 import { requireAdminAuth } from '../../../../lib/adminAuth';
 
+// See app/api/health/db/route.js -- without this, Next.js can freeze
+// this route at build time and never re-check real env vars again.
+export const dynamic = 'force-dynamic';
+
 export async function GET(req) {
   const authError = requireAdminAuth(req);
   if (authError) return authError;

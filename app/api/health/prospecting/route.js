@@ -7,6 +7,10 @@
 // non-secret metadata.
 import { pool } from '../../../../lib/db';
 
+// See app/api/health/db/route.js -- without this, Next.js can freeze
+// this route's response at build time and never re-check env vars again.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const env = {
     // Discovery itself no longer needs GOOGLE_PLACES_API_KEY -- switched

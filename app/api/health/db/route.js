@@ -7,6 +7,13 @@
 // failing -- this exists so that question never needs guessing again.
 import { pool } from '../../../../lib/db';
 
+// Forces this to actually run on every request instead of Next.js
+// statically prerendering it once at build time and serving that same
+// frozen snapshot forever -- this route has no dynamic inputs (no
+// params/cookies/headers), which makes it a candidate for that
+// optimization otherwise.
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const { rows } = await pool.query('SELECT current_database() AS db, current_user AS role');
