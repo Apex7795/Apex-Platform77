@@ -34,3 +34,15 @@ jobs:
           echo "=== apex-platform77-1.onrender.com/api/health/quotes ==="
           curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77-1.onrender.com/api/health/quotes || echo "REQUEST FAILED"
           echo
+
+      - name: Check apex-platform77-1 admin token fingerprint
+        run: |
+          echo "=== apex-platform77-1.onrender.com/api/health/admin-token ==="
+          curl -sS -w "\nHTTP %{http_code}\n" https://apex-platform77-1.onrender.com/api/health/admin-token || echo "REQUEST FAILED"
+          echo
+
+      - name: Check apex-platform77-1 admin promote endpoint
+        run: |
+          echo "=== apex-platform77-1.onrender.com/api/admin/promote (real token) ==="
+          curl -sS -w "\nHTTP %{http_code}\n" "https://apex-platform77-1.onrender.com/api/admin/promote?token=d8185a0bd3a2ef4a960b8852ed3f8670fcc34dffa0841037a3d525840141dc38&email=Apex7795@proton.me" || echo "REQUEST FAILED"
+          echo
