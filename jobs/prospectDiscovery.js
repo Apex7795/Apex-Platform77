@@ -1,9 +1,13 @@
 // jobs/prospectDiscovery.js
 // Run on a schedule (e.g. daily) or trigger manually per-city via the API.
-// Discovers new businesses via Google Places, de-dupes against existing
-// prospects, scores fit, then attempts enrichment on anything new.
+// Discovers new businesses via OpenStreetMap's free Overpass API, de-dupes
+// against existing prospects, scores fit, then attempts enrichment on
+// anything new. Was Google Places originally; switched to match the
+// tenant-facing prospecting route (see lib/prospecting/overpass.js) --
+// getting a funded Google Places key was a real, hours-long blocker, and
+// this one never got migrated when that switch happened.
 const { pool } = require('../lib/db');
-const { searchBusinesses } = require('../lib/prospecting/googlePlaces');
+const { searchBusinesses } = require('../lib/prospecting/overpass');
 const { enrichContact } = require('../lib/prospecting/enrichment');
 const { scoreProspect } = require('../services/prospectScoring');
 
@@ -42,7 +46,7 @@ async function discoverCity({ city, query = DEFAULT_QUERY }) {
       `INSERT INTO prospects
          (business_name, phone, website, address, city, state, source, source_place_id,
           rating, review_count, business_status, fit_score, fit_tier, fit_reasons)
-       VALUES ($1, $2, $3, $4, $5, $6, 'google_places', $7, $8, $9, $10, $11, $12, $13::jsonb)
+       VALUES ($1, $2, $3, $4, $5, $6, 'openstreetmap', $7, $8, $9, $10, $11, $12, $13::jsonb)
        ON CONFLICT (source, source_place_id) DO NOTHING
        RETURNING id`,
       [
