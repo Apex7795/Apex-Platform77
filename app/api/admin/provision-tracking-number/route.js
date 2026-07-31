@@ -11,6 +11,7 @@
 import { Pool } from 'pg';
 import crypto from 'crypto';
 import twilio from 'twilio';
+import { getTwilioAccountSid, getTwilioAuthToken } from '../../../../lib/twilioCredentials';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,7 +39,7 @@ export async function GET(req) {
   if (!email) {
     return new Response('Add ?email=you@example.com to the URL.', { status: 400 });
   }
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN) {
+  if (!getTwilioAccountSid() || !getTwilioAuthToken()) {
     return new Response('TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN are not set.', { status: 503 });
   }
   if (!process.env.WEBHOOK_URL) {
@@ -75,7 +76,7 @@ export async function GET(req) {
       );
     }
 
-    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+    const client = twilio(getTwilioAccountSid(), getTwilioAuthToken());
 
     const available = await client.availablePhoneNumbers('US').local.list({
       areaCode: Number(areaCode),

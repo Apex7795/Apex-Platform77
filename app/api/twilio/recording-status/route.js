@@ -1,6 +1,7 @@
 // app/api/twilio/recording-status/route.js
 import twilio from 'twilio';
 import { query, runWithTenant } from '../../../../lib/db';
+import { getTwilioAuthToken } from '../../../../lib/twilioCredentials';
 
 export async function POST(req) {
   let params;
@@ -10,7 +11,7 @@ export async function POST(req) {
     params = Object.fromEntries(new URLSearchParams(rawBody));
     const webhookUrl = `${process.env.WEBHOOK_URL}/api/twilio/recording-status`;
 
-    const isValid = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, signature, webhookUrl, params);
+    const isValid = twilio.validateRequest(getTwilioAuthToken(), signature, webhookUrl, params);
     if (!isValid) {
       console.error('Invalid Twilio signature on /recording-status', { webhookUrl });
       return new Response('Invalid signature', { status: 403 });

@@ -5,8 +5,9 @@
 const twilio = require('twilio');
 const OpenAI = require('openai');
 const { pool, runWithTenant } = require('../lib/db');
+const { getTwilioAccountSid, getTwilioAuthToken } = require('../lib/twilioCredentials');
 
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+const twilioClient = twilio(getTwilioAccountSid(), getTwilioAuthToken());
 let _openai;
 function getOpenAI() {
   if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

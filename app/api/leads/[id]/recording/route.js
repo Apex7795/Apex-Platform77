@@ -4,6 +4,7 @@
 // Scoped to whichever tenant the logged-in user's session belongs to.
 import { runWithTenant } from '../../../../../lib/db';
 import { getSessionFromRequest } from '../../../../../lib/session';
+import { getTwilioAccountSid, getTwilioAuthToken } from '../../../../../lib/twilioCredentials';
 
 export async function GET(req, { params }) {
   const session = getSessionFromRequest(req);
@@ -37,7 +38,7 @@ export async function GET(req, { params }) {
         headers: {
           Authorization:
             'Basic ' +
-            Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64'),
+            Buffer.from(`${getTwilioAccountSid()}:${getTwilioAuthToken()}`).toString('base64'),
         },
         signal: controller.signal,
       });

@@ -8,6 +8,7 @@
 // number, and Body carries the message text.
 import twilio from 'twilio';
 import { query, runWithTenant } from '../../../../lib/db';
+import { getTwilioAuthToken } from '../../../../lib/twilioCredentials';
 
 const OPT_OUT_KEYWORDS = ['stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit'];
 
@@ -19,7 +20,7 @@ export async function POST(req) {
     params = Object.fromEntries(new URLSearchParams(rawBody));
     const webhookUrl = `${process.env.WEBHOOK_URL}/api/twilio/messenger-inbound`;
 
-    const isValid = twilio.validateRequest(process.env.TWILIO_AUTH_TOKEN, signature, webhookUrl, params);
+    const isValid = twilio.validateRequest(getTwilioAuthToken(), signature, webhookUrl, params);
     if (!isValid) {
       console.error('Invalid Twilio signature on /messenger-inbound', { webhookUrl });
       return new Response('Invalid signature', { status: 403 });
