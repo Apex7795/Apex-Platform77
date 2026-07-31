@@ -170,6 +170,9 @@ export default function Dashboard() {
           <Link href="/receipts" className="text-sm text-slate-500 hover:text-slate-800 underline">
             Receipts
           </Link>
+          <Link href="/job-postings" className="text-sm text-slate-500 hover:text-slate-800 underline">
+            Job Marketplace
+          </Link>
           {business?.role === 'admin' && (
             <Link href="/admin" className="text-sm text-slate-500 hover:text-slate-800 underline">
               All Tenants (Admin)

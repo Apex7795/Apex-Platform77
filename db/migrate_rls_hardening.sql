@@ -89,7 +89,7 @@ GRANT USAGE ON SCHEMA public TO app_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   tenants, users, landing_pages, tracking_numbers, leads, ad_campaigns,
   audit_logs, prospects, prospect_outreach_log, quotes, receipts, tenant_prospects,
-  usage_credits
+  usage_credits, job_postings
   TO app_user;
 
 -- reservations has no tenant_id (it's pre-tenant interest capture) so it

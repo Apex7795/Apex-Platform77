@@ -9,6 +9,7 @@
     "cron": "node scripts/cron.js",
     "migrate": "node scripts/run-sql-file.js db/migrate_combined.sql",
     "migrate:rls-hardening": "node scripts/run-sql-file.js db/migrate_rls_hardening.sql",
+    "migrate:job-marketplace": "node scripts/run-sql-file.js db/migrate_job_marketplace.sql",
     "seed": "node scripts/run-sql-file.js db/seed_primary_tenant.sql",
     "promote-admin": "node scripts/promote-admin.js",
     "reset-password": "node scripts/reset-password.js",
