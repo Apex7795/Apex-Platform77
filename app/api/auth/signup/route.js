@@ -6,6 +6,7 @@
 import { pool } from '../../../../lib/db';
 import { hashPassword, createSessionToken, sessionCookieHeader } from '../../../../lib/session';
 import { isRateLimited, getClientIp } from '../../../../lib/rateLimit';
+import { runWelcomeProspectSearch } from '../../../../services/welcomeProspecting';
 
 const UNIQUE_VIOLATION = '23505';
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -89,6 +90,14 @@ export async function POST(req) {
     await client.query('COMMIT');
 
     const token = createSessionToken({ userId, tenantId, role: 'owner' });
+
+    // Fire-and-forget: populate the new tenant's dashboard with real local
+    // referral-source businesses so it isn't empty on day one. Deliberately
+    // not awaited -- Overpass/Hunter.io latency (or being down) should
+    // never delay or fail the signup response itself.
+    runWelcomeProspectSearch({ tenantId, serviceType, serviceArea }).catch((err) =>
+      console.error('runWelcomeProspectSearch failed to even start', err.message)
+    );
 
     return Response.json(
       { tenantId, userId, subdomain },
