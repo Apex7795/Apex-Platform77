@@ -10,6 +10,7 @@ const { pool } = require('../lib/db');
 const { searchBusinesses } = require('../lib/prospecting/overpass');
 const { enrichContact } = require('../lib/prospecting/enrichment');
 const { scoreProspect } = require('../services/prospectScoring');
+const { sendOutreachEmail } = require('../services/prospectOutreach');
 
 const DEFAULT_QUERY = 'junk removal';
 
@@ -72,28 +73,57 @@ async function discoverCity({ city, query = DEFAULT_QUERY }) {
   return { found: results.length, inserted };
 }
 
-// --- Enrich any prospect that has a website but no email yet ---
+// --- Enrich any prospect that has a website but no email yet, then email
+// them automatically. No manual "One-Click Outreach" click required for
+// prospects that arrive through this (the OSM discovery) pipeline --
+// discover -> enrich -> email is now one unattended run. The manual
+// per-prospect outreach button (app/api/prospects/[id]/outreach) and the
+// one-off enrich-and-outreach route still exist for retries/one-offs. ---
 // Deliberately skips 'disqualified' prospects (permanently closed per
 // Google) — no point spending Hunter.io calls enriching a dead business.
 async function enrichPendingProspects({ limit = 50 } = {}) {
+  // Two groups in one query: prospects that still need Hunter.io enrichment
+  // (status='discovered'), and prospects that already have an email but
+  // never got successfully emailed (status='enriched' -- sendOutreachEmail
+  // only advances status to 'contacted' on success, so a prospect stuck at
+  // 'enriched' means a previous send attempt failed, e.g. Postmark wasn't
+  // configured yet). Including that second group is what makes retries
+  // actually happen on the next scheduled run instead of silently stalling
+  // forever the first time a send fails.
   const { rows: pending } = await pool.query(
-    `SELECT id, website FROM prospects
-     WHERE status = 'discovered' AND website IS NOT NULL AND email IS NULL
-       AND (fit_tier IS NULL OR fit_tier != 'disqualified')
+    `SELECT id, website, email, status FROM prospects
+     WHERE (fit_tier IS NULL OR fit_tier != 'disqualified')
+       AND (
+         (status = 'discovered' AND website IS NOT NULL AND email IS NULL)
+         OR (status = 'enriched' AND email IS NOT NULL)
+       )
      LIMIT $1`,
     [limit]
   );
 
   let enriched = 0;
+  let emailed = 0;
   for (const prospect of pending) {
     try {
-      const result = await enrichContact({ website: prospect.website });
-      if (result?.email) {
+      if (prospect.status === 'discovered') {
+        const result = await enrichContact({ website: prospect.website });
+        if (!result?.email) continue;
+
         await pool.query(
           `UPDATE prospects SET email = $1, status = 'enriched', updated_at = now() WHERE id = $2`,
           [result.email, prospect.id]
         );
         enriched += 1;
+      }
+
+      try {
+        await sendOutreachEmail(prospect.id);
+        emailed += 1;
+      } catch (sendErr) {
+        // Leaves the prospect at 'enriched' (not 'contacted'), so the
+        // WHERE clause above picks it back up and retries the send on the
+        // next scheduled run instead of it silently stalling forever.
+        console.error('Auto-outreach failed for prospect', prospect.id, sendErr.message);
       }
     } catch (err) {
       // One bad enrichment call shouldn't stop the batch
@@ -101,8 +131,8 @@ async function enrichPendingProspects({ limit = 50 } = {}) {
     }
   }
 
-  console.log(`Enrichment: ${enriched}/${pending.length} prospects enriched`);
-  return { attempted: pending.length, enriched };
+  console.log(`Enrichment: ${enriched} newly enriched, ${emailed} emailed (of ${pending.length} candidates)`);
+  return { attempted: pending.length, enriched, emailed };
 }
 
 // --- Full run across every (query x city) combination ---
