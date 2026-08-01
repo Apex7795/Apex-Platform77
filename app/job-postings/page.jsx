@@ -36,6 +36,9 @@ export default function JobPostingsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [activityLoaded, setActivityLoaded] = useState(false);
+
   const [form, setForm] = useState({
     title: '', description: '', city: '', state: '',
     estimated_value: '', commission_percent: '20',
@@ -60,6 +63,14 @@ export default function JobPostingsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    fetch('/api/job-postings/activity')
+      .then((res) => res.json())
+      .then((data) => setRecentActivity(Array.isArray(data.recentJobs) ? data.recentJobs : []))
+      .catch(() => setRecentActivity([]))
+      .finally(() => setActivityLoaded(true));
+  }, []);
 
   const handlePost = async (e) => {
     e.preventDefault();
@@ -149,6 +160,24 @@ export default function JobPostingsPage() {
         you can service. The posting tenant earns their set commission automatically once a
         claimed job is marked complete — settle it between yourselves using the job tag as proof.
       </p>
+
+      {activityLoaded && (
+        <div className="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h2 className="text-sm font-semibold text-slate-700 mb-2">Recent marketplace activity</h2>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-slate-500">No completed marketplace jobs yet — this will fill in as tenants claim and complete work.</p>
+          ) : (
+            <ul className="space-y-1">
+              {recentActivity.map((job, i) => (
+                <li key={i} className="text-sm text-slate-600">
+                  <span className="font-medium text-slate-900">{job.claimed_by_business_name}</span> completed{' '}
+                  &ldquo;{job.title}&rdquo; in {job.city}, {job.state}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="flex rounded-lg border border-slate-300 overflow-hidden text-sm mb-6 w-fit">
         {[
