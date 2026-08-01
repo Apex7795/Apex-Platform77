@@ -12,6 +12,7 @@
 import { runWithTenant } from '../../../lib/db';
 import { getSessionFromRequest } from '../../../lib/session';
 import { generateJobTag } from '../../../lib/jobPostingTag';
+import { alertTenantsOfNewJobPosting } from '../../../services/jobPostingAlerts';
 
 export async function GET(req) {
   const session = getSessionFromRequest(req);
@@ -89,6 +90,12 @@ export async function POST(req) {
             ]
           )
         );
+        // Fire-and-forget: SMS latency (or Twilio being down) should never
+        // delay or fail the post itself.
+        alertTenantsOfNewJobPosting(rows[0], session.tenantId).catch((err) =>
+          console.error('alertTenantsOfNewJobPosting failed to even start', err.message)
+        );
+
         return Response.json({ jobPosting: rows[0] }, { status: 201 });
       } catch (err) {
         if (err.code === '23505') {
